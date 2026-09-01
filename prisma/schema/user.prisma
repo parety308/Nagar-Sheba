@@ -1,18 +1,38 @@
 model User {
   id                 String     @id @default(uuid())
   name               String
-  email              String
+  email              String     @unique
   password           String
+  phone              String?
+  profileImage       String?
+  address            String?
+  gender             Gender?
+
   emailVerified      Boolean    @default(false)
-  role               Role       @default(PATIENT)
+  role               Role       @default(CITIZEN)
   status             UserStatus @default(ACTIVE)
   needPasswordChange Boolean    @default(false)
+
   isDeleted          Boolean    @default(false)
   deletedAt          DateTime?
+
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
-  patient            Patient?
 
-  @@unique([email])
+  // Relations
+  complaints         Complaint[]    @relation("CitizenComplaints")
+  assignments        Assignment[]   @relation("AssignedStaff")
+  statusHistories    StatusHistory[] @relation("ChangedBy")
+  feedbacks          Feedback[]
+  payments           Payment[]
+  auditLogs          AuditLog[]     @relation("UserAuditLogs")
+  departmentsManaged Department[]    @relation("DepartmentManager")
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@index([isDeleted])
+  @@index([createdAt])
+
   @@map("users")
 }

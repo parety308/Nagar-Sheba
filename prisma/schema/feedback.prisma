@@ -1,0 +1,22 @@
+model Feedback {
+  id           String   @id @default(uuid())
+
+  complaintId  String   @unique
+  citizenId    String
+
+  rating       Int
+  comment      String?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  complaint    Complaint @relation(fields: [complaintId], references: [id])
+  citizen      User      @relation(fields: [citizenId], references: [id])
+
+  @@index([citizenId])
+  @@index([rating])
+  @@index([createdAt])
+
+  @@map("feedbacks")
+}

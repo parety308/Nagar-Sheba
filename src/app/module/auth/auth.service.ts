@@ -1,192 +1,276 @@
-import bcrypt from 'bcryptjs'
-import { JwtPayload, SignOptions } from 'jsonwebtoken'
-import { Role, UserStatus } from '../../../generated/prisma/enums'
-import config from '../../config'
-import { prisma } from '../../lib/prisma'
-import { jwtUtils } from '../../utils/jwt'
+import bcrypt from "bcryptjs";
+import { JwtPayload, SignOptions } from "jsonwebtoken";
+import { Role, UserStatus } from "../../../generated/prisma/enums";
+import config from "../../config";
+import { prisma } from "../../lib/prisma";
+import { jwtUtils } from "../../utils/jwt";
 import {
-    ILoginUserPayload,
-    IRegisterPatientPayload,
-    IRequestUser
-} from './auth.interface'
+	IRequestUser,
+	ILoginUserPayload,
+	IRegisterUserPayload,
+} from "./auth.interface";
 
 
-const registerPatient = async (payload: IRegisterPatientPayload) => {
-    const { name, password } = payload
-    const email = payload.email.trim().toLowerCase()
+// REGISTER USER
 
-    const isUserExists = await prisma.user.findUnique({
-        where: { email },
-    })
+const registerUser = async (payload: IRegisterUserPayload) => {
+	const {
+		name,
+		password,
+		phone,
+		profileImage,
+		address,
+		gender,
+	} = payload;
 
-    if (isUserExists) {
-        throw new Error('User with this email already exists')
-    }
+	const email = payload.email.trim().toLowerCase();
 
-    const hashedPassword = await bcrypt.hash(password, 8)
+	// Check existing user
+	const isUserExists = await prisma.user.findUnique({
+		where: { email },
+	});
 
-    const createdUser = await prisma.user.create({
-        data: {
-            name,
-            email,
-            password: hashedPassword,
-            role: Role.PATIENT,
-            status: UserStatus.ACTIVE,
-            emailVerified: false,
-            patient: {
-                create: { name, email },
-            },
-        },
-        omit: { password: true },
-        include: { patient: true },
-    })
+	if (isUserExists) {
+		throw new Error("User with this email already exists");
+	}
 
-    const { patient, ...user } = createdUser
-    const jwtPayload = {
-        userId: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-    }
+	// Hash password
+	const hashedPassword = await bcrypt.hash(password, 10);
 
-    const accessToken = jwtUtils.createToken(
-        jwtPayload,
-        config.jwt_access_secret,
-        config.jwt_access_expires_in as SignOptions
-    );
+	// Create citizen
+	const createdUser = await prisma.user.create({
+		data: {
+			name,
+			email,
+			password: hashedPassword,
 
-    const refreshToken = jwtUtils.createToken(
-        jwtPayload,
-        config.jwt_refresh_secret,
-        config.jwt_refresh_expires_in as SignOptions
-    );
+			phone,
+			profileImage,
+			address,
+			gender,
 
-    return {
-        user,
-        patient,
-        accessToken,
-        refreshToken
-    }
-}
+			role: Role.CITIZEN,
+			status: UserStatus.ACTIVE,
+
+			emailVerified: false,
+			needPasswordChange: false,
+
+			isDeleted: false,
+		},
+
+		omit: {
+			password: true,
+		},
+	});
+
+	// JWT payload
+	const jwtPayload = {
+		userId: createdUser.id,
+		name: createdUser.name,
+		email: createdUser.email,
+		role: createdUser.role,
+	};
+
+	// Access token
+	const accessToken = jwtUtils.createToken(
+		jwtPayload,
+		config.jwt_access_secret,
+		config.jwt_access_expires_in as SignOptions,
+	);
+
+	// Refresh token
+	const refreshToken = jwtUtils.createToken(
+		jwtPayload,
+		config.jwt_refresh_secret,
+		config.jwt_refresh_expires_in as SignOptions,
+	);
+
+	return {
+		user: createdUser,
+		accessToken,
+		refreshToken,
+	};
+};
+
+
+
+// LOGIN
+
 
 const loginUser = async (payload: ILoginUserPayload) => {
-    const { password } = payload
-    const email = payload.email.trim().toLowerCase()
+	const { password } = payload;
+	const email = payload.email.trim().toLowerCase();
 
-    const user = await prisma.user.findUnique({
-        where: { email },
-    })
+	// Find user
+	const user = await prisma.user.findUnique({
+		where: { email },
+	});
 
-    if (!user) {
-        throw new Error('User not found')
-    }
+	if (!user) {
+		throw new Error("Invalid credentials");
+	}
 
-    if (user.status === UserStatus.BLOCKED) {
-        throw new Error('User is blocked')
-    }
+	// Soft deleted user
+	if (user.isDeleted) {
+		throw new Error("User account has been deleted");
+	}
 
-    if (user.isDeleted || user.status === UserStatus.DELETED) {
-        throw new Error('User is deleted')
-    }
+	// Blocked user
+	if (user.status === UserStatus.BLOCKED) {
+		throw new Error("User is blocked");
+	}
 
-    const isPasswordMatched = await bcrypt.compare(password, user.password)
+	// Inactive user
+	if (user.status === UserStatus.INACTIVE) {
+		throw new Error("User account is inactive");
+	}
 
-    if (!isPasswordMatched) {
-        throw new Error('Invalid credentials')
-    }
+	// Password verification
+	const isPasswordMatched = await bcrypt.compare(
+		password,
+		user.password,
+	);
 
-    const jwtPayload = {
-        userId: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-    }
+	if (!isPasswordMatched) {
+		throw new Error("Invalid credentials");
+	}
 
-    const accessToken = jwtUtils.createToken(
-        jwtPayload,
-        config.jwt_access_secret,
-        config.jwt_access_expires_in as SignOptions
-    );
+	// JWT payload
+	const jwtPayload = {
+		userId: user.id,
+		name: user.name,
+		email: user.email,
+		role: user.role,
+	};
 
-    const refreshToken = jwtUtils.createToken(
-        jwtPayload,
-        config.jwt_refresh_secret,
-        config.jwt_refresh_expires_in as SignOptions
-    );
+	// Access token
+	const accessToken = jwtUtils.createToken(
+		jwtPayload,
+		config.jwt_access_secret,
+		config.jwt_access_expires_in as SignOptions,
+	);
 
-    return {
-        accessToken,
-        refreshToken
-    }
-}
+	// Refresh token
+	const refreshToken = jwtUtils.createToken(
+		jwtPayload,
+		config.jwt_refresh_secret,
+		config.jwt_refresh_expires_in as SignOptions,
+	);
+
+	return {
+		accessToken,
+		refreshToken,
+	};
+};
+
+
+
+// GET CURRENT USER
+
 
 const getMe = async (user: IRequestUser) => {
-    const isUserExists = await prisma.user.findUnique({
-        where: {
-            id: user.userId,
-        },
-        include: {
-            patient: true,
-        },
-        omit: {
-            password: true,
-        },
-    })
+	const currentUser = await prisma.user.findUnique({
+		where: {
+			id: user.userId,
+		},
 
-    if (!isUserExists) {
-        throw new Error('User not found')
-    }
+		omit: {
+			password: true,
+		},
+	});
 
-    return isUserExists
-}
+	if (!currentUser) {
+		throw new Error("User not found");
+	}
+
+	if (currentUser.isDeleted) {
+		throw new Error("User account has been deleted");
+	}
+
+	if (currentUser.status !== UserStatus.ACTIVE) {
+		throw new Error("User account is not active");
+	}
+
+	return currentUser;
+};
+
+
+
+// REFRESH TOKEN
+
 
 const refreshToken = async (token: string) => {
-    const verifiedRefreshToken = jwtUtils.verifyToken(token, config.jwt_refresh_secret)
+	const verifiedRefreshToken = jwtUtils.verifyToken(
+		token,
+		config.jwt_refresh_secret,
+	);
 
-    if (!verifiedRefreshToken.success || !verifiedRefreshToken.data) {
-        throw new Error(config.node_env === 'development' ? verifiedRefreshToken.error : 'Invalid refresh token')
-    }
+	if (
+		!verifiedRefreshToken.success ||
+		!verifiedRefreshToken.data
+	) {
+		throw new Error(
+			config.node_env === "development"
+				? verifiedRefreshToken.error
+				: "Invalid refresh token",
+		);
+	}
 
-    const data = verifiedRefreshToken.data as JwtPayload
+	const data = verifiedRefreshToken.data as JwtPayload;
 
-    const user = await prisma.user.findUnique({
-        where: { id: data.userId },
-    })
+	// Find user
+	const user = await prisma.user.findUnique({
+		where: {
+			id: data.userId,
+		},
+	});
 
-    if (!user || user.isDeleted || user.status !== UserStatus.ACTIVE) {
-        throw new Error('User is inactive or not found')
-    }
+	if (!user) {
+		throw new Error("User not found");
+	}
 
-    const jwtPayload = {
-        userId: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-    }
+	// Soft deleted
+	if (user.isDeleted) {
+		throw new Error("User account has been deleted");
+	}
 
-    const accessToken = jwtUtils.createToken(
-        jwtPayload,
-        config.jwt_access_secret,
-        config.jwt_access_expires_in as SignOptions
-    );
+	// Inactive / blocked
+	if (user.status !== UserStatus.ACTIVE) {
+		throw new Error("User account is not active");
+	}
 
-    const refreshToken = jwtUtils.createToken(
-        jwtPayload,
-        config.jwt_refresh_secret,
-        config.jwt_refresh_expires_in as SignOptions
-    );
+	// JWT payload
+	const jwtPayload = {
+		userId: user.id,
+		name: user.name,
+		email: user.email,
+		role: user.role,
+	};
 
-    return {
-        accessToken,
-        refreshToken
-    }
-}
+	// New access token
+	const accessToken = jwtUtils.createToken(
+		jwtPayload,
+		config.jwt_access_secret,
+		config.jwt_access_expires_in as SignOptions,
+	);
 
+	// New refresh token
+	const newRefreshToken = jwtUtils.createToken(
+		jwtPayload,
+		config.jwt_refresh_secret,
+		config.jwt_refresh_expires_in as SignOptions,
+	);
+
+	return {
+		accessToken,
+		refreshToken: newRefreshToken,
+	};
+};
 
 
 export const AuthService = {
-    registerPatient,
-    loginUser,
-    getMe,
-    refreshToken
-}
+	registerUser,
+	loginUser,
+	getMe,
+	refreshToken,
+};

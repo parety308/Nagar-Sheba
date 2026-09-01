@@ -1,18 +1,77 @@
 enum Role {
-  SUPER_ADMIN
+  CITIZEN
+  STAFF
   ADMIN
-  DOCTOR
-  PATIENT
 }
+
 
 enum UserStatus {
   ACTIVE
+  INACTIVE
   BLOCKED
-  DELETED
 }
+
 
 enum Gender {
   MALE
   FEMALE
   OTHER
+}
+
+
+enum ComplaintPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+
+enum ComplaintStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+  CANCELLED
+}
+
+
+enum AssignmentStatus {
+  ASSIGNED
+  ACCEPTED
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+}
+
+
+enum PaymentProvider {
+  BKASH
+  STRIPE
+  SSLCOMMERZ
+}
+
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  ROLE_CHANGE
+  STATUS_CHANGE
+  ASSIGN
+  PAYMENT
 }

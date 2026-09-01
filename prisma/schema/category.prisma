@@ -1,0 +1,25 @@
+model Category {
+  id           String   @id @default(uuid())
+  name         String
+  description  String?
+
+  departmentId String
+
+  isActive     Boolean  @default(true)
+  isDeleted    Boolean  @default(false)
+  deletedAt    DateTime?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  department   Department  @relation(fields: [departmentId], references: [id])
+  complaints   Complaint[]
+
+  @@unique([name, departmentId])
+  @@index([departmentId])
+  @@index([isActive])
+  @@index([isDeleted])
+
+  @@map("categories")
+}

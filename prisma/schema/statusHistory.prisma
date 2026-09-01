@@ -1,0 +1,24 @@
+model StatusHistory {
+  id           String   @id @default(uuid())
+
+  complaintId  String
+
+  fromStatus   ComplaintStatus?
+  toStatus     ComplaintStatus
+
+  changedById  String
+  note         String?
+
+  createdAt    DateTime @default(now())
+
+  // Relations
+  complaint    Complaint @relation(fields: [complaintId], references: [id])
+  changedBy    User      @relation("ChangedBy", fields: [changedById], references: [id])
+
+  @@index([complaintId])
+  @@index([changedById])
+  @@index([toStatus])
+  @@index([createdAt])
+
+  @@map("status_histories")
+}
