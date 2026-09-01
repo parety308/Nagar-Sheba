@@ -1,18 +1,14 @@
 
 import { Role } from "../../../generated/prisma/browser";
 
-// ============================================================================
 // LOGIN USER PAYLOAD
-// ============================================================================
 
 export interface ILoginUserPayload {
 	email: string;
 	password: string;
 }
 
-// ============================================================================
 // REGISTER USER PAYLOAD
-// ============================================================================
 
 export interface IRegisterUserPayload {
 	fullName: string;
@@ -22,9 +18,7 @@ export interface IRegisterUserPayload {
 	address?: string;
 }
 
-// ============================================================================
 // AUTHENTICATED REQUEST USER
-// ============================================================================
 
 export interface IRequestUser {
 	userId: string;

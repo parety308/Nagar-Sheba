@@ -10,9 +10,7 @@ import {
 	IRequestUser,
 } from "./auth.interface";
 
-// ============================================================================
 // REGISTER USER
-// ============================================================================
 
 const registerUser = async (payload: IRegisterUserPayload) => {
 	const {
@@ -25,9 +23,7 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 
 	const email = rawEmail.trim().toLowerCase();
 
-	// --------------------------------------------------------------------------
 	// Check existing user
-	// --------------------------------------------------------------------------
 
 	const existingUser = await prisma.user.findUnique({
 		where: {
@@ -39,15 +35,11 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 		throw new Error("User with this email already exists");
 	}
 
-	// --------------------------------------------------------------------------
 	// Hash password
-	// --------------------------------------------------------------------------
 
 	const passwordHash = await bcrypt.hash(password, 10);
 
-	// --------------------------------------------------------------------------
 	// Create User + Citizen Profile
-	// --------------------------------------------------------------------------
 
 	const createdUser = await prisma.user.create({
 		data: {
@@ -74,9 +66,7 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 		},
 	});
 
-	// --------------------------------------------------------------------------
 	// JWT Payload
-	// --------------------------------------------------------------------------
 
 	const jwtPayload = {
 		userId: createdUser.id,
@@ -84,9 +74,7 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 		role: createdUser.role,
 	};
 
-	// --------------------------------------------------------------------------
 	// Access Token
-	// --------------------------------------------------------------------------
 
 	const accessToken = jwtUtils.createToken(
 		jwtPayload,
@@ -94,9 +82,7 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 		config.jwt_access_expires_in as SignOptions,
 	);
 
-	// --------------------------------------------------------------------------
 	// Refresh Token
-	// --------------------------------------------------------------------------
 
 	const refreshToken = jwtUtils.createToken(
 		jwtPayload,
@@ -104,9 +90,7 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 		config.jwt_refresh_expires_in as SignOptions,
 	);
 
-	// --------------------------------------------------------------------------
 	// Remove sensitive information
-	// --------------------------------------------------------------------------
 
 	const { passwordHash: _, ...safeUser } = createdUser;
 
@@ -117,18 +101,14 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 	};
 };
 
-// ============================================================================
 // LOGIN USER
-// ============================================================================
 
 const loginUser = async (payload: ILoginUserPayload) => {
 	const { password } = payload;
 
 	const email = payload.email.trim().toLowerCase();
 
-	// --------------------------------------------------------------------------
 	// Find user
-	// --------------------------------------------------------------------------
 
 	const user = await prisma.user.findUnique({
 		where: {
@@ -146,17 +126,13 @@ const loginUser = async (payload: ILoginUserPayload) => {
 		throw new Error("Invalid credentials");
 	}
 
-	// --------------------------------------------------------------------------
 	// Check account status
-	// --------------------------------------------------------------------------
 
 	if (user.status === AccountStatus.BLOCKED) {
 		throw new Error("User account is blocked");
 	}
 
-	// --------------------------------------------------------------------------
 	// Password check
-	// --------------------------------------------------------------------------
 
 	if (!user.passwordHash) {
 		throw new Error("Password authentication is not available for this account");
@@ -171,9 +147,7 @@ const loginUser = async (payload: ILoginUserPayload) => {
 		throw new Error("Invalid credentials");
 	}
 
-	// --------------------------------------------------------------------------
 	// JWT Payload
-	// --------------------------------------------------------------------------
 
 	const jwtPayload = {
 		userId: user.id,
@@ -181,9 +155,7 @@ const loginUser = async (payload: ILoginUserPayload) => {
 		role: user.role,
 	};
 
-	// --------------------------------------------------------------------------
 	// Access Token
-	// --------------------------------------------------------------------------
 
 	const accessToken = jwtUtils.createToken(
 		jwtPayload,
@@ -191,9 +163,7 @@ const loginUser = async (payload: ILoginUserPayload) => {
 		config.jwt_access_expires_in as SignOptions,
 	);
 
-	// --------------------------------------------------------------------------
 	// Refresh Token
-	// --------------------------------------------------------------------------
 
 	const refreshToken = jwtUtils.createToken(
 		jwtPayload,
@@ -207,9 +177,7 @@ const loginUser = async (payload: ILoginUserPayload) => {
 	};
 };
 
-// ============================================================================
 // GET CURRENT USER
-// ============================================================================
 
 const getMe = async (user: IRequestUser) => {
 	const currentUser = await prisma.user.findUnique({
@@ -228,39 +196,29 @@ const getMe = async (user: IRequestUser) => {
 		},
 	});
 
-	// --------------------------------------------------------------------------
 	// User not found
-	// --------------------------------------------------------------------------
 
 	if (!currentUser) {
 		throw new Error("User not found");
 	}
 
-	// --------------------------------------------------------------------------
 	// Check account status
-	// --------------------------------------------------------------------------
 
 	if (currentUser.status === AccountStatus.BLOCKED) {
 		throw new Error("User account is blocked");
 	}
 
-	// --------------------------------------------------------------------------
 	// Remove password hash
-	// --------------------------------------------------------------------------
 
 	const { passwordHash: _, ...safeUser } = currentUser;
 
 	return safeUser;
 };
 
-// ============================================================================
 // REFRESH TOKEN
-// ============================================================================
 
 const refreshToken = async (token: string) => {
-	// --------------------------------------------------------------------------
 	// Verify refresh token
-	// --------------------------------------------------------------------------
 
 	const verifiedRefreshToken = jwtUtils.verifyToken(
 		token,
@@ -277,17 +235,13 @@ const refreshToken = async (token: string) => {
 
 	const data = verifiedRefreshToken.data as JwtPayload;
 
-	// --------------------------------------------------------------------------
 	// Validate userId
-	// --------------------------------------------------------------------------
 
 	if (!data.userId) {
 		throw new Error("Invalid refresh token payload");
 	}
 
-	// --------------------------------------------------------------------------
 	// Find user
-	// --------------------------------------------------------------------------
 
 	const user = await prisma.user.findUnique({
 		where: {
@@ -299,17 +253,13 @@ const refreshToken = async (token: string) => {
 		throw new Error("User not found");
 	}
 
-	// --------------------------------------------------------------------------
 	// Check account status
-	// --------------------------------------------------------------------------
 
 	if (user.status === AccountStatus.BLOCKED) {
 		throw new Error("User account is blocked");
 	}
 
-	// --------------------------------------------------------------------------
 	// JWT Payload
-	// --------------------------------------------------------------------------
 
 	const jwtPayload = {
 		userId: user.id,
@@ -317,9 +267,7 @@ const refreshToken = async (token: string) => {
 		role: user.role,
 	};
 
-	// --------------------------------------------------------------------------
 	// New Access Token
-	// --------------------------------------------------------------------------
 
 	const accessToken = jwtUtils.createToken(
 		jwtPayload,
@@ -327,9 +275,7 @@ const refreshToken = async (token: string) => {
 		config.jwt_access_expires_in as SignOptions,
 	);
 
-	// --------------------------------------------------------------------------
 	// Rotate Refresh Token
-	// --------------------------------------------------------------------------
 
 	const newRefreshToken = jwtUtils.createToken(
 		jwtPayload,
@@ -343,9 +289,7 @@ const refreshToken = async (token: string) => {
 	};
 };
 
-// ============================================================================
 // EXPORT
-// ============================================================================
 
 export const AuthService = {
 	registerUser,

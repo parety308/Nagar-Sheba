@@ -6,9 +6,7 @@ import { sendResponse } from "../../utils/sendResponse";
 import { IRequestUser } from "./auth.interface";
 import { AuthService } from "./auth.service";
 
-// ============================================================================
 // COOKIE OPTIONS
-// ============================================================================
 
 const accessTokenCookieOptions = {
 	httpOnly: true,
@@ -24,9 +22,7 @@ const refreshTokenCookieOptions = {
 	maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
 };
 
-// ============================================================================
 // REGISTER USER
-// ============================================================================
 
 const registerUser = catchAsync(async (req: Request, res: Response) => {
 	const payload = req.body;
@@ -61,9 +57,7 @@ const registerUser = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-// ============================================================================
 // LOGIN USER
-// ============================================================================
 
 const loginUser = catchAsync(async (req: Request, res: Response) => {
 	const payload = req.body;
@@ -97,9 +91,7 @@ const loginUser = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-// ============================================================================
 // GET CURRENT USER
-// ============================================================================
 
 const getMe = catchAsync(async (req: Request, res: Response) => {
 	const user = req.user as IRequestUser;
@@ -118,9 +110,7 @@ const getMe = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-// ============================================================================
 // REFRESH TOKEN
-// ============================================================================
 
 const refreshToken = catchAsync(async (req: Request, res: Response) => {
 	const token = req.cookies.refreshToken;
@@ -161,9 +151,7 @@ const refreshToken = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-// ============================================================================
 // LOGOUT USER
-// ============================================================================
 
 const logoutUser = catchAsync(async (_req: Request, res: Response) => {
 	// Clear authentication cookies
@@ -187,9 +175,7 @@ const logoutUser = catchAsync(async (_req: Request, res: Response) => {
 	});
 });
 
-// ============================================================================
 // EXPORT
-// ============================================================================
 
 export const AuthController = {
 	registerUser,
