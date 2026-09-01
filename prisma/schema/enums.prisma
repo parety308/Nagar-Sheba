@@ -4,74 +4,44 @@ enum Role {
   ADMIN
 }
 
-
-enum UserStatus {
+enum AccountStatus {
   ACTIVE
-  INACTIVE
   BLOCKED
 }
 
-
-enum Gender {
-  MALE
-  FEMALE
-  OTHER
+enum FeeType {
+  FREE
+  PAID
 }
 
-
-enum ComplaintPriority {
-  LOW
-  MEDIUM
-  HIGH
-  URGENT
-}
-
-
-enum ComplaintStatus {
+enum RequestStatus {
+  PENDING_PAYMENT
   SUBMITTED
-  UNDER_REVIEW
   ASSIGNED
   IN_PROGRESS
   RESOLVED
-  REJECTED
+  CLOSED
   CANCELLED
 }
 
-
-enum AssignmentStatus {
-  ASSIGNED
-  ACCEPTED
-  IN_PROGRESS
-  COMPLETED
-  REJECTED
-}
-
-
 enum PaymentProvider {
-  BKASH
   STRIPE
   SSLCOMMERZ
 }
 
-
 enum PaymentStatus {
   PENDING
-  PROCESSING
-  PAID
+  COMPLETED
   FAILED
   CANCELLED
   REFUNDED
 }
 
+enum AttachmentType {
+  EVIDENCE
+  RESOLUTION_PROOF
+}
 
-enum AuditAction {
-  CREATE
-  UPDATE
-  DELETE
-  LOGIN
-  LOGOUT
-  ROLE_CHANGE
-  STATUS_CHANGE
-  ASSIGN
-  PAYMENT
+enum NotificationChannel {
+  EMAIL
 }

@@ -1,0 +1,15 @@
+model Attachment {
+  id         String         @id @default(uuid())
+  requestId  String
+  uploadedBy String
+  url        String
+  type       AttachmentType
+
+  createdAt DateTime @default(now())
+
+  request  ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  uploader User           @relation("AttachmentUploadedBy", fields: [uploadedBy], references: [id])
+
+  @@index([requestId])
+  @@map("attachments")
+}

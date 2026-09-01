@@ -1,0 +1,46 @@
+model ServiceRequest {
+  id          String @id @default(uuid())
+  trackingRef String @unique
+
+  citizenId       String
+  categoryId      String
+  departmentId    String
+  assignedStaffId String?
+
+  title       String
+  description String
+  address     String
+  latitude    Decimal @db.Decimal(9, 6)
+  longitude   Decimal @db.Decimal(9, 6)
+
+  status     RequestStatus @default(SUBMITTED)
+  feeCharged Decimal?      @db.Decimal(10, 2)
+  slaDueAt   DateTime?
+  isOverdue  Boolean       @default(false)
+
+  resolvedAt  DateTime?
+  closedAt    DateTime?
+  cancelledAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  citizen       User       @relation("RequestCitizen", fields: [citizenId], references: [id])
+  category      Category   @relation(fields: [categoryId], references: [id])
+  department    Department @relation(fields: [departmentId], references: [id])
+  assignedStaff User?      @relation("RequestAssignedStaff", fields: [assignedStaffId], references: [id])
+
+  statusHistory StatusHistory[]
+  attachments   Attachment[]
+  payment       Payment?
+  feedback      Feedback?
+
+  @@index([status])
+  @@index([citizenId])
+  @@index([departmentId])
+  @@index([assignedStaffId])
+  @@index([categoryId])
+  @@index([isOverdue])
+  @@map("service_requests")
+}

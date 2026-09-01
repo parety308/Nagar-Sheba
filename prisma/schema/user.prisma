@@ -1,38 +1,36 @@
 model User {
-  id                 String     @id @default(uuid())
-  name               String
-  email              String     @unique
-  password           String
-  phone              String?
-  profileImage       String?
-  address            String?
-  gender             Gender?
+  id                 String        @id @default(uuid())
+  email              String        @unique
+  passwordHash       String?
+  googleId           String?       @unique
+  role               Role
+  status             AccountStatus @default(ACTIVE)
+  isEmailVerified    Boolean       @default(false)
+  mustChangePassword Boolean       @default(false)
 
-  emailVerified      Boolean    @default(false)
-  role               Role       @default(CITIZEN)
-  status             UserStatus @default(ACTIVE)
-  needPasswordChange Boolean    @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
-  isDeleted          Boolean    @default(false)
-  deletedAt          DateTime?
+  // 1:1 role profiles — exactly one of these is populated, based on `role`
+  citizenProfile CitizenProfile?
+  staffProfile   StaffProfile?
+  adminProfile   AdminProfile?
 
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
+  // Relations as a Citizen
+  requestsSubmitted ServiceRequest[] @relation("RequestCitizen")
+  feedbacks         Feedback[]
 
-  // Relations
-  complaints         Complaint[]    @relation("CitizenComplaints")
-  assignments        Assignment[]   @relation("AssignedStaff")
-  statusHistories    StatusHistory[] @relation("ChangedBy")
-  feedbacks          Feedback[]
-  payments           Payment[]
-  auditLogs          AuditLog[]     @relation("UserAuditLogs")
-  departmentsManaged Department[]    @relation("DepartmentManager")
+  // Relations as Staff (assignee)
+  requestsAssigned ServiceRequest[] @relation("RequestAssignedStaff")
 
-  @@index([email])
+  // Cross-role relations
+  statusChangesMade   StatusHistory[] @relation("StatusChangedBy")
+  attachmentsUploaded Attachment[]    @relation("AttachmentUploadedBy")
+  notifications       Notification[]
+  auditLogsAsActor    AuditLog[]      @relation("AuditActor")
+
   @@index([role])
   @@index([status])
-  @@index([isDeleted])
-  @@index([createdAt])
-
   @@map("users")
 }

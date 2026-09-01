@@ -1,0 +1,13 @@
+model StaffProfile {
+  id           String  @id @default(uuid())
+  userId       String  @unique
+  departmentId String
+  fullName     String
+  title        String?
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department Department @relation(fields: [departmentId], references: [id])
+
+  @@index([departmentId])
+  @@map("staff_profiles")
+}

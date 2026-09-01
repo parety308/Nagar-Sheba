@@ -1,23 +1,34 @@
-import { Gender, Role } from "../../../generated/prisma/browser";
+
+import { Role } from "../../../generated/prisma/browser";
+
+// ============================================================================
+// LOGIN USER PAYLOAD
+// ============================================================================
 
 export interface ILoginUserPayload {
 	email: string;
 	password: string;
 }
 
+// ============================================================================
+// REGISTER USER PAYLOAD
+// ============================================================================
+
 export interface IRegisterUserPayload {
-	name: string;
+	fullName: string;
 	email: string;
 	password: string;
 	phone?: string;
-	profileImage?: string;
 	address?: string;
-	gender?: Gender;
 }
+
+// ============================================================================
+// AUTHENTICATED REQUEST USER
+// ============================================================================
 
 export interface IRequestUser {
 	userId: string;
 	email: string;
-	name: string;
 	role: Role;
 }
+

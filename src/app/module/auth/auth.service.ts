@@ -1,156 +1,200 @@
 import bcrypt from "bcryptjs";
 import { JwtPayload, SignOptions } from "jsonwebtoken";
-import { Role, UserStatus } from "../../../generated/prisma/enums";
+import { AccountStatus, Role } from "../../../generated/prisma/enums";
 import config from "../../config";
 import { prisma } from "../../lib/prisma";
 import { jwtUtils } from "../../utils/jwt";
 import {
-	IRequestUser,
 	ILoginUserPayload,
 	IRegisterUserPayload,
+	IRequestUser,
 } from "./auth.interface";
 
-
+// ============================================================================
 // REGISTER USER
+// ============================================================================
 
 const registerUser = async (payload: IRegisterUserPayload) => {
 	const {
-		name,
+		fullName,
+		email: rawEmail,
 		password,
 		phone,
-		profileImage,
 		address,
-		gender,
 	} = payload;
 
-	const email = payload.email.trim().toLowerCase();
+	const email = rawEmail.trim().toLowerCase();
 
+	// --------------------------------------------------------------------------
 	// Check existing user
-	const isUserExists = await prisma.user.findUnique({
-		where: { email },
+	// --------------------------------------------------------------------------
+
+	const existingUser = await prisma.user.findUnique({
+		where: {
+			email,
+		},
 	});
 
-	if (isUserExists) {
+	if (existingUser) {
 		throw new Error("User with this email already exists");
 	}
 
+	// --------------------------------------------------------------------------
 	// Hash password
-	const hashedPassword = await bcrypt.hash(password, 10);
+	// --------------------------------------------------------------------------
 
-	// Create citizen
+	const passwordHash = await bcrypt.hash(password, 10);
+
+	// --------------------------------------------------------------------------
+	// Create User + Citizen Profile
+	// --------------------------------------------------------------------------
+
 	const createdUser = await prisma.user.create({
 		data: {
-			name,
 			email,
-			password: hashedPassword,
-
-			phone,
-			profileImage,
-			address,
-			gender,
+			passwordHash,
 
 			role: Role.CITIZEN,
-			status: UserStatus.ACTIVE,
+			status: AccountStatus.ACTIVE,
 
-			emailVerified: false,
-			needPasswordChange: false,
+			isEmailVerified: false,
+			mustChangePassword: false,
 
-			isDeleted: false,
+			citizenProfile: {
+				create: {
+					fullName,
+					phone,
+					address,
+				},
+			},
 		},
 
-		omit: {
-			password: true,
+		include: {
+			citizenProfile: true,
 		},
 	});
 
-	// JWT payload
+	// --------------------------------------------------------------------------
+	// JWT Payload
+	// --------------------------------------------------------------------------
+
 	const jwtPayload = {
 		userId: createdUser.id,
-		name: createdUser.name,
 		email: createdUser.email,
 		role: createdUser.role,
 	};
 
-	// Access token
+	// --------------------------------------------------------------------------
+	// Access Token
+	// --------------------------------------------------------------------------
+
 	const accessToken = jwtUtils.createToken(
 		jwtPayload,
 		config.jwt_access_secret,
 		config.jwt_access_expires_in as SignOptions,
 	);
 
-	// Refresh token
+	// --------------------------------------------------------------------------
+	// Refresh Token
+	// --------------------------------------------------------------------------
+
 	const refreshToken = jwtUtils.createToken(
 		jwtPayload,
 		config.jwt_refresh_secret,
 		config.jwt_refresh_expires_in as SignOptions,
 	);
 
+	// --------------------------------------------------------------------------
+	// Remove sensitive information
+	// --------------------------------------------------------------------------
+
+	const { passwordHash: _, ...safeUser } = createdUser;
+
 	return {
-		user: createdUser,
+		user: safeUser,
 		accessToken,
 		refreshToken,
 	};
 };
 
-
-
-// LOGIN
-
+// ============================================================================
+// LOGIN USER
+// ============================================================================
 
 const loginUser = async (payload: ILoginUserPayload) => {
 	const { password } = payload;
+
 	const email = payload.email.trim().toLowerCase();
 
+	// --------------------------------------------------------------------------
 	// Find user
+	// --------------------------------------------------------------------------
+
 	const user = await prisma.user.findUnique({
-		where: { email },
+		where: {
+			email,
+		},
+
+		include: {
+			citizenProfile: true,
+			staffProfile: true,
+			adminProfile: true,
+		},
 	});
 
 	if (!user) {
 		throw new Error("Invalid credentials");
 	}
 
-	// Soft deleted user
-	if (user.isDeleted) {
-		throw new Error("User account has been deleted");
+	// --------------------------------------------------------------------------
+	// Check account status
+	// --------------------------------------------------------------------------
+
+	if (user.status === AccountStatus.BLOCKED) {
+		throw new Error("User account is blocked");
 	}
 
-	// Blocked user
-	if (user.status === UserStatus.BLOCKED) {
-		throw new Error("User is blocked");
+	// --------------------------------------------------------------------------
+	// Password check
+	// --------------------------------------------------------------------------
+
+	if (!user.passwordHash) {
+		throw new Error("Password authentication is not available for this account");
 	}
 
-	// Inactive user
-	if (user.status === UserStatus.INACTIVE) {
-		throw new Error("User account is inactive");
-	}
-
-	// Password verification
 	const isPasswordMatched = await bcrypt.compare(
 		password,
-		user.password,
+		user.passwordHash,
 	);
 
 	if (!isPasswordMatched) {
 		throw new Error("Invalid credentials");
 	}
 
-	// JWT payload
+	// --------------------------------------------------------------------------
+	// JWT Payload
+	// --------------------------------------------------------------------------
+
 	const jwtPayload = {
 		userId: user.id,
-		name: user.name,
 		email: user.email,
 		role: user.role,
 	};
 
-	// Access token
+	// --------------------------------------------------------------------------
+	// Access Token
+	// --------------------------------------------------------------------------
+
 	const accessToken = jwtUtils.createToken(
 		jwtPayload,
 		config.jwt_access_secret,
 		config.jwt_access_expires_in as SignOptions,
 	);
 
-	// Refresh token
+	// --------------------------------------------------------------------------
+	// Refresh Token
+	// --------------------------------------------------------------------------
+
 	const refreshToken = jwtUtils.createToken(
 		jwtPayload,
 		config.jwt_refresh_secret,
@@ -163,10 +207,9 @@ const loginUser = async (payload: ILoginUserPayload) => {
 	};
 };
 
-
-
+// ============================================================================
 // GET CURRENT USER
-
+// ============================================================================
 
 const getMe = async (user: IRequestUser) => {
 	const currentUser = await prisma.user.findUnique({
@@ -174,41 +217,57 @@ const getMe = async (user: IRequestUser) => {
 			id: user.userId,
 		},
 
-		omit: {
-			password: true,
+		include: {
+			citizenProfile: true,
+			staffProfile: {
+				include: {
+					department: true,
+				},
+			},
+			adminProfile: true,
 		},
 	});
+
+	// --------------------------------------------------------------------------
+	// User not found
+	// --------------------------------------------------------------------------
 
 	if (!currentUser) {
 		throw new Error("User not found");
 	}
 
-	if (currentUser.isDeleted) {
-		throw new Error("User account has been deleted");
+	// --------------------------------------------------------------------------
+	// Check account status
+	// --------------------------------------------------------------------------
+
+	if (currentUser.status === AccountStatus.BLOCKED) {
+		throw new Error("User account is blocked");
 	}
 
-	if (currentUser.status !== UserStatus.ACTIVE) {
-		throw new Error("User account is not active");
-	}
+	// --------------------------------------------------------------------------
+	// Remove password hash
+	// --------------------------------------------------------------------------
 
-	return currentUser;
+	const { passwordHash: _, ...safeUser } = currentUser;
+
+	return safeUser;
 };
 
-
-
+// ============================================================================
 // REFRESH TOKEN
-
+// ============================================================================
 
 const refreshToken = async (token: string) => {
+	// --------------------------------------------------------------------------
+	// Verify refresh token
+	// --------------------------------------------------------------------------
+
 	const verifiedRefreshToken = jwtUtils.verifyToken(
 		token,
 		config.jwt_refresh_secret,
 	);
 
-	if (
-		!verifiedRefreshToken.success ||
-		!verifiedRefreshToken.data
-	) {
+	if (!verifiedRefreshToken.success || !verifiedRefreshToken.data) {
 		throw new Error(
 			config.node_env === "development"
 				? verifiedRefreshToken.error
@@ -218,7 +277,18 @@ const refreshToken = async (token: string) => {
 
 	const data = verifiedRefreshToken.data as JwtPayload;
 
+	// --------------------------------------------------------------------------
+	// Validate userId
+	// --------------------------------------------------------------------------
+
+	if (!data.userId) {
+		throw new Error("Invalid refresh token payload");
+	}
+
+	// --------------------------------------------------------------------------
 	// Find user
+	// --------------------------------------------------------------------------
+
 	const user = await prisma.user.findUnique({
 		where: {
 			id: data.userId,
@@ -229,32 +299,38 @@ const refreshToken = async (token: string) => {
 		throw new Error("User not found");
 	}
 
-	// Soft deleted
-	if (user.isDeleted) {
-		throw new Error("User account has been deleted");
+	// --------------------------------------------------------------------------
+	// Check account status
+	// --------------------------------------------------------------------------
+
+	if (user.status === AccountStatus.BLOCKED) {
+		throw new Error("User account is blocked");
 	}
 
-	// Inactive / blocked
-	if (user.status !== UserStatus.ACTIVE) {
-		throw new Error("User account is not active");
-	}
+	// --------------------------------------------------------------------------
+	// JWT Payload
+	// --------------------------------------------------------------------------
 
-	// JWT payload
 	const jwtPayload = {
 		userId: user.id,
-		name: user.name,
 		email: user.email,
 		role: user.role,
 	};
 
-	// New access token
+	// --------------------------------------------------------------------------
+	// New Access Token
+	// --------------------------------------------------------------------------
+
 	const accessToken = jwtUtils.createToken(
 		jwtPayload,
 		config.jwt_access_secret,
 		config.jwt_access_expires_in as SignOptions,
 	);
 
-	// New refresh token
+	// --------------------------------------------------------------------------
+	// Rotate Refresh Token
+	// --------------------------------------------------------------------------
+
 	const newRefreshToken = jwtUtils.createToken(
 		jwtPayload,
 		config.jwt_refresh_secret,
@@ -267,6 +343,9 @@ const refreshToken = async (token: string) => {
 	};
 };
 
+// ============================================================================
+// EXPORT
+// ============================================================================
 
 export const AuthService = {
 	registerUser,

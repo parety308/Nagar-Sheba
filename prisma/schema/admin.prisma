@@ -1,0 +1,9 @@
+model AdminProfile {
+  id       String @id @default(uuid())
+  userId   String @unique
+  fullName String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("admin_profiles")
+}

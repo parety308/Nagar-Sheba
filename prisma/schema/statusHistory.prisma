@@ -1,24 +1,16 @@
 model StatusHistory {
-  id           String   @id @default(uuid())
+  id         String         @id @default(uuid())
+  requestId  String
+  fromStatus RequestStatus?
+  toStatus   RequestStatus
+  changedBy  String
+  note       String?
 
-  complaintId  String
+  createdAt DateTime @default(now())
 
-  fromStatus   ComplaintStatus?
-  toStatus     ComplaintStatus
+  request       ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  changedByUser User           @relation("StatusChangedBy", fields: [changedBy], references: [id])
 
-  changedById  String
-  note         String?
-
-  createdAt    DateTime @default(now())
-
-  // Relations
-  complaint    Complaint @relation(fields: [complaintId], references: [id])
-  changedBy    User      @relation("ChangedBy", fields: [changedById], references: [id])
-
-  @@index([complaintId])
-  @@index([changedById])
-  @@index([toStatus])
-  @@index([createdAt])
-
+  @@index([requestId])
   @@map("status_histories")
 }

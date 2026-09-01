@@ -6,8 +6,9 @@ import { sendResponse } from "../../utils/sendResponse";
 import { IRequestUser } from "./auth.interface";
 import { AuthService } from "./auth.service";
 
-
+// ============================================================================
 // COOKIE OPTIONS
+// ============================================================================
 
 const accessTokenCookieOptions = {
 	httpOnly: true,
@@ -23,8 +24,9 @@ const refreshTokenCookieOptions = {
 	maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
 };
 
-
+// ============================================================================
 // REGISTER USER
+// ============================================================================
 
 const registerUser = catchAsync(async (req: Request, res: Response) => {
 	const payload = req.body;
@@ -59,8 +61,9 @@ const registerUser = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-
-// LOGIN
+// ============================================================================
+// LOGIN USER
+// ============================================================================
 
 const loginUser = catchAsync(async (req: Request, res: Response) => {
 	const payload = req.body;
@@ -94,11 +97,12 @@ const loginUser = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-
+// ============================================================================
 // GET CURRENT USER
+// ============================================================================
 
 const getMe = catchAsync(async (req: Request, res: Response) => {
-	const user = req.user as unknown as IRequestUser;
+	const user = req.user as IRequestUser;
 
 	if (!user) {
 		throw new Error("User information is missing in the request");
@@ -114,8 +118,9 @@ const getMe = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-
+// ============================================================================
 // REFRESH TOKEN
+// ============================================================================
 
 const refreshToken = catchAsync(async (req: Request, res: Response) => {
 	const token = req.cookies.refreshToken;
@@ -156,11 +161,41 @@ const refreshToken = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
+// ============================================================================
+// LOGOUT USER
+// ============================================================================
+
+const logoutUser = catchAsync(async (_req: Request, res: Response) => {
+	// Clear authentication cookies
+	res.clearCookie("accessToken", {
+		httpOnly: true,
+		secure: process.env.NODE_ENV === "production",
+		sameSite: "none" as const,
+	});
+
+	res.clearCookie("refreshToken", {
+		httpOnly: true,
+		secure: process.env.NODE_ENV === "production",
+		sameSite: "none" as const,
+	});
+
+	sendResponse(res, {
+		statusCode: httpStatus.OK,
+		success: true,
+		message: "User logged out successfully",
+		data: null,
+	});
+});
+
+// ============================================================================
+// EXPORT
+// ============================================================================
 
 export const AuthController = {
 	registerUser,
 	loginUser,
 	getMe,
 	refreshToken,
+	logoutUser,
 };
 

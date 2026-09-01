@@ -1,30 +1,15 @@
 model Department {
-  id          String   @id @default(uuid())
-  name        String   @unique
+  id          String  @id @default(uuid())
+  name        String  @unique
   description String?
-  email       String?
-  phone       String?
 
-  isActive    Boolean  @default(true)
-  isDeleted   Boolean  @default(false)
-  deletedAt   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
-  managerId   String?
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  manager     User?        @relation("DepartmentManager", fields: [managerId], references: [id])
-
-  categories  Category[]
-  complaints  Complaint[]
-  assignments Assignment[]
-
-  @@index([name])
-  @@index([managerId])
-  @@index([isActive])
-  @@index([isDeleted])
+  categories Category[]
+  staff      StaffProfile[]
+  requests   ServiceRequest[]
 
   @@map("departments")
 }

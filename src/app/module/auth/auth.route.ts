@@ -1,18 +1,11 @@
-
 import { Router } from "express";
-
-import { Role } from "../../../generated/prisma/enums";
-
-import { auth } from "../../middleware/checkAuth";
-
 import { AuthController } from "./auth.controller";
 
 const router = Router();
 
+// AUTH ROUTES
 
-// PUBLIC ROUTES
-
-// Register new citizen
+// Register Citizen
 router.post(
 	"/register",
 	AuthController.registerUser,
@@ -24,26 +17,23 @@ router.post(
 	AuthController.loginUser,
 );
 
-// Generate new access token
+// Get currently authenticated user
+router.get(
+	"/me",
+	AuthController.getMe,
+);
+
+// Refresh access + refresh token
 router.post(
 	"/refresh-token",
 	AuthController.refreshToken,
 );
 
-
-// PROTECTED ROUTES
-
-// Get current authenticated user
-router.get(
-	"/me",
-	auth(
-		Role.CITIZEN,
-		Role.STAFF,
-		Role.ADMIN,
-	),
-	AuthController.getMe,
+// Logout
+router.post(
+	"/logout",
+	AuthController.logoutUser,
 );
-
 
 export const AuthRoutes = router;
 
