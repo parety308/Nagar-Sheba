@@ -7,14 +7,25 @@ export interface ILoginUserPayload {
 	password: string;
 }
 
-// REGISTER USER PAYLOAD
-
 export interface IRegisterUserPayload {
-	fullName: string;
-	email: string;
-	password: string;
-	phone?: string;
-	address?: string;
+    fullName: string;
+    email: string;
+    password: string;
+    phone?: string;
+    address?: string;
+}
+
+export interface IRegistrationRedisPayload {
+    fullName: string;
+    email: string;
+    passwordHash: string;
+    phone?: string;
+    address?: string;
+}
+
+export interface IRegistrationVerifyPayload {
+    email: string;
+    otp: string;
 }
 
 // AUTHENTICATED REQUEST USER
@@ -40,3 +51,5 @@ export interface IResetPasswordPayload {
 	otp: string;
 	newPassword: string;
 }
+
+

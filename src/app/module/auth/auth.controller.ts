@@ -6,46 +6,66 @@ import { IRequestUser } from "./auth.interface";
 import { AuthService } from "./auth.service";
 
 // COOKIE OPTIONS
-
 const accessTokenCookieOptions = {
-	httpOnly: true,
-	secure: process.env.NODE_ENV === "production",
-	sameSite: "none" as const,
-	maxAge: 1000 * 60 * 60 * 24, // 1 day
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "none" as const,
+    maxAge: 1000 * 60 * 60 * 24, // 1 day
 };
 
 const refreshTokenCookieOptions = {
-	httpOnly: true,
-	secure: process.env.NODE_ENV === "production",
-	sameSite: "none" as const,
-	maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "none" as const,
+    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
 };
 
 // REGISTER USER
 
 const registerUser = catchAsync(async (req: Request, res: Response) => {
-	const payload = req.body;
+    const payload = req.body;
 
-	const result = await AuthService.registerUser(payload);
+    await AuthService.registerUser(payload);
 
-	const { accessToken, refreshToken, user } = result;
+    sendResponse(res, {
+        statusCode: httpStatus.CREATED,
+        success: true,
+        message: "Check Your Email",
+        data: null,
+    });
+});
 
-	// Set access token cookie
-	res.cookie("accessToken", accessToken, accessTokenCookieOptions);
+// VERIFY CITIZEN EMAIL
 
-	// Set refresh token cookie
-	res.cookie("refreshToken", refreshToken, refreshTokenCookieOptions);
+const verifyCitizenEmail = catchAsync(async (req: Request, res: Response) => {
+    const payload = req.body;
 
-	sendResponse(res, {
-		statusCode: httpStatus.CREATED,
-		success: true,
-		message: "User registered successfully",
-		data: {
-			user,
-			accessToken,
-			refreshToken,
-		},
-	});
+    const result = await AuthService.verifyRegistrationEmail(payload);
+
+    const { accessToken, refreshToken, user } = result;
+
+    // Set Access Token Cookie
+    res.cookie(
+        "accessToken",
+        accessToken,
+        accessTokenCookieOptions,
+    );
+
+    // Set Refresh Token Cookie
+    res.cookie(
+        "refreshToken",
+        refreshToken,
+        refreshTokenCookieOptions,
+    );
+
+    sendResponse(res, {
+        statusCode: httpStatus.CREATED,
+        success: true,
+        message: "Citizen registered successfully",
+        data: {
+            user
+        },
+    });
 });
 
 //GOOGLE LOGIN
@@ -198,4 +218,5 @@ export const AuthController = {
 	logoutUser,
 	forgotPassword,
 	resetPassword,
+	verifyCitizenEmail
 };

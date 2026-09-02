@@ -103,6 +103,12 @@ const ResetPasswordZodSchema = z.object({
 	newPassword: passwordSchema,
 });
 
+const CitizenEmailVerifyZodSchema = z.object({
+	email: z.email("Invalid email address"),
+	otp: z
+		.string("OTP is required.")
+		.length(6, "OTP must be exactly 6 digits long."),
+});
 // EXPORT
 
 export const authValidationSchemas = {
@@ -113,4 +119,5 @@ export const authValidationSchemas = {
 	ForgotPasswordZodSchema,
 	ResetPasswordZodSchema,
 	RefreshTokenZodSchema,
+	CitizenEmailVerifyZodSchema
 };

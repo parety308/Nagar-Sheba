@@ -16,6 +16,12 @@ router.post(
 );
 
 router.post(
+	"/verify-email",
+	validateRequestBody(authValidationSchemas.CitizenEmailVerifyZodSchema),
+	AuthController.verifyCitizenEmail,
+);
+
+router.post(
 	"/google-login",
 	validateRequestBody(authValidationSchemas.GoogleLoginZodSchema),
 	AuthController.googleLogin,
