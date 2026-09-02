@@ -119,5 +119,5 @@ export const authValidationSchemas = {
 	ForgotPasswordZodSchema,
 	ResetPasswordZodSchema,
 	RefreshTokenZodSchema,
-	CitizenEmailVerifyZodSchema
+	CitizenEmailVerifyZodSchema,
 };

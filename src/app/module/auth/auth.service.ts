@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import ejs from "ejs";
-import {  TokenPayload } from "google-auth-library";
+import { TokenPayload } from "google-auth-library";
 import { JwtPayload, SignOptions } from "jsonwebtoken";
 import path from "path";
 import {
@@ -29,223 +29,206 @@ import {
 // REGISTER USER
 
 const registerUser = async (payload: IRegisterUserPayload) => {
-    const {
-        fullName,
-        email: rawEmail,
-        password,
-        phone,
-        address,
-    } = payload;
+	const { fullName, email: rawEmail, password, phone, address } = payload;
 
-    // Normalize email
-    const email = rawEmail.trim().toLowerCase();
+	// Normalize email
+	const email = rawEmail.trim().toLowerCase();
 
-    // Check existing user
-    const existingUser = await prisma.user.findUnique({
-        where: {
-            email,
-        },
-    });
+	// Check existing user
+	const existingUser = await prisma.user.findUnique({
+		where: {
+			email,
+		},
+	});
 
-    if (existingUser) {
-        throw new Error("User with this email already exists");
-    }
+	if (existingUser) {
+		throw new Error("User with this email already exists");
+	}
 
-    // Hash password
-    const passwordHash = await bcrypt.hash(password, 10);
+	// Hash password
+	const passwordHash = await bcrypt.hash(password, 10);
 
-    // Data to store temporarily in Redis
-    const redisPayload: IRegistrationRedisPayload = {
-        fullName,
-        email,
-        passwordHash,
-        phone,
-        address,
-    };
+	// Data to store temporarily in Redis
+	const redisPayload: IRegistrationRedisPayload = {
+		fullName,
+		email,
+		passwordHash,
+		phone,
+		address,
+	};
 
-    // Generate 6 digit OTP
-    const otpValue = crypto.randomInt(100000, 1000000);
+	// Generate 6 digit OTP
+	const otpValue = crypto.randomInt(100000, 1000000);
 
-    // Redis keys
-    const otpKey = `citizen-registration-otp:${email}`;
-    const registrationDataKey = `registration-data:${email}`;
+	// Redis keys
+	const otpKey = `citizen-registration-otp:${email}`;
+	const registrationDataKey = `registration-data:${email}`;
 
-    // OTP expires in 5 minutes
-    await redisClient.set(otpKey, otpValue.toString(), {
-        expiration: {
-            type: "EX",
-            value: 5 * 60,
-        },
-    });
+	// OTP expires in 5 minutes
+	await redisClient.set(otpKey, otpValue.toString(), {
+		expiration: {
+			type: "EX",
+			value: 5 * 60,
+		},
+	});
 
-    // Registration data expires in 5 minutes
-    await redisClient.set(
-        registrationDataKey,
-        JSON.stringify(redisPayload),
-        {
-            expiration: {
-                type: "EX",
-                value: 5 * 60,
-            },
-        },
-    );
+	// Registration data expires in 5 minutes
+	await redisClient.set(registrationDataKey, JSON.stringify(redisPayload), {
+		expiration: {
+			type: "EX",
+			value: 5 * 60,
+		},
+	});
 
-    // EJS template path
-    const templatePath = path.join(
-        process.cwd(),
-        "src/app/templates/registration-otp.ejs",
-    );
+	// EJS template path
+	const templatePath = path.join(
+		process.cwd(),
+		"src/app/templates/registration-otp.ejs",
+	);
 
-    // Render email template
-    const html = await ejs.renderFile(templatePath, {
-        name: fullName,
-        email,
-        otpValue,
-        expirationMinutes: 5,
-    });
+	// Render email template
+	const html = await ejs.renderFile(templatePath, {
+		name: fullName,
+		email,
+		otpValue,
+		expirationMinutes: 5,
+	});
 
-    // Send verification email
-    await transport.sendMail({
-        from: config.smtp.sender,
-        to: email,
-        subject: "Verify Email Address",
-        html,
-    });
+	// Send verification email
+	await transport.sendMail({
+		from: config.smtp.sender,
+		to: email,
+		subject: "Verify Email Address",
+		html,
+	});
 
-    return {
-        message: "Registration initiated. Please check your email for the verification code.",
-    };
+	return {
+		message:
+			"Registration initiated. Please check your email for the verification code.",
+	};
 };
 
-const verifyRegistrationEmail = async (
-    payload: IRegistrationVerifyPayload,
-) => {
-    // Normalize email
-    const email = payload.email.trim().toLowerCase();
+const verifyRegistrationEmail = async (payload: IRegistrationVerifyPayload) => {
+	// Normalize email
+	const email = payload.email.trim().toLowerCase();
 
-    const otp = payload.otp.trim();
+	const otp = payload.otp.trim();
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-        where: {
-            email,
-        },
-    });
+	// Check if user already exists
+	const existingUser = await prisma.user.findUnique({
+		where: {
+			email,
+		},
+	});
 
-    // If user already verified
-    if (existingUser?.isEmailVerified) {
-        throw new Error("Email is already verified");
-    }
+	// If user already verified
+	if (existingUser?.isEmailVerified) {
+		throw new Error("Email is already verified");
+	}
 
-    // If user is blocked
-    if (existingUser?.status === "BLOCKED") {
-        throw new Error("User is blocked");
-    }
+	// If user is blocked
+	if (existingUser?.status === "BLOCKED") {
+		throw new Error("User is blocked");
+	}
 
-    // Redis OTP key
-    const otpKey = `citizen-registration-otp:${email}`;
+	// Redis OTP key
+	const otpKey = `citizen-registration-otp:${email}`;
 
-    // Get OTP from Redis
-    const redisOTP = await redisClient.get(otpKey);
+	// Get OTP from Redis
+	const redisOTP = await redisClient.get(otpKey);
 
-    // OTP not found / expired
-    if (!redisOTP) {
-        throw new Error(
-            "The verification code has expired or could not be found.",
-        );
-    }
+	// OTP not found / expired
+	if (!redisOTP) {
+		throw new Error("The verification code has expired or could not be found.");
+	}
 
-    // Compare OTP
-    if (redisOTP !== otp) {
-        throw new Error("The verification code is incorrect.");
-    }
+	// Compare OTP
+	if (redisOTP !== otp) {
+		throw new Error("The verification code is incorrect.");
+	}
 
-    // Registration data key
-    const registrationDataKey = `registration-data:${email}`;
+	// Registration data key
+	const registrationDataKey = `registration-data:${email}`;
 
-    // Get registration data from Redis
-    const registrationData = await redisClient.get(
-        registrationDataKey,
-    );
+	// Get registration data from Redis
+	const registrationData = await redisClient.get(registrationDataKey);
 
-    if (!registrationData) {
-        throw new Error(
-            "Registration data has expired or could not be found.",
-        );
-    }
+	if (!registrationData) {
+		throw new Error("Registration data has expired or could not be found.");
+	}
 
-    // Parse Redis data
-    const registrationPayload: IRegistrationRedisPayload =
-        JSON.parse(registrationData);
+	// Parse Redis data
+	const registrationPayload: IRegistrationRedisPayload =
+		JSON.parse(registrationData);
 
-    const {
-        fullName,
-        email: registrationEmail,
-        passwordHash,
-        phone,
-        address,
-    } = registrationPayload;
+	const {
+		fullName,
+		email: registrationEmail,
+		passwordHash,
+		phone,
+		address,
+	} = registrationPayload;
 
-    // Extra safety check
-    if (registrationEmail !== email) {
-        throw new Error("Registration email does not match.");
-    }
+	// Extra safety check
+	if (registrationEmail !== email) {
+		throw new Error("Registration email does not match.");
+	}
 
-    // Create user + citizen profile
-    const createdUser = await prisma.user.create({
-        data: {
-            email: registrationEmail,
-            passwordHash,
+	// Create user + citizen profile
+	const createdUser = await prisma.user.create({
+		data: {
+			email: registrationEmail,
+			passwordHash,
 
-            role: Role.CITIZEN,
-            status: AccountStatus.ACTIVE,
+			role: Role.CITIZEN,
+			status: AccountStatus.ACTIVE,
 
-            // OTP verified successfully
-            isEmailVerified: true,
+			// OTP verified successfully
+			isEmailVerified: true,
 
-            mustChangePassword: false,
+			mustChangePassword: false,
 
-            citizenProfile: {
-                create: {
-                    fullName,
-                    phone,
-                    address,
-                },
-            },
-        },
+			citizenProfile: {
+				create: {
+					fullName,
+					phone,
+					address,
+				},
+			},
+		},
 
-        include: {
-            citizenProfile: true,
-        },
-    });
+		include: {
+			citizenProfile: true,
+		},
+	});
 
-    // JWT Payload
-    const jwtPayload = {
-        userId: createdUser.id,
-        name: createdUser.citizenProfile?.fullName,
-        email: createdUser.email,
-        role: createdUser.role,
-    };
+	// JWT Payload
+	const jwtPayload = {
+		userId: createdUser.id,
+		name: createdUser.citizenProfile?.fullName,
+		email: createdUser.email,
+		role: createdUser.role,
+	};
 
-    // Create Access Token
-    const accessToken = jwtUtils.createToken(
-        jwtPayload,
-        config.jwt_access_secret,
-        config.jwt_access_expires_in as SignOptions,
-    );
+	// Create Access Token
+	const accessToken = jwtUtils.createToken(
+		jwtPayload,
+		config.jwt_access_secret,
+		config.jwt_access_expires_in as SignOptions,
+	);
 
-    // Create Refresh Token
-    const refreshToken = jwtUtils.createToken(
-        jwtPayload,
-        config.jwt_refresh_secret,
-        config.jwt_refresh_expires_in as SignOptions,
-    );
+	// Create Refresh Token
+	const refreshToken = jwtUtils.createToken(
+		jwtPayload,
+		config.jwt_refresh_secret,
+		config.jwt_refresh_expires_in as SignOptions,
+	);
 
-    // Delete OTP and registration data after successful verification
-    await redisClient.del(otpKey);
-    await redisClient.del(registrationDataKey);
+	// Delete OTP and registration data after successful verification
+	await redisClient.del(otpKey);
+	await redisClient.del(registrationDataKey);
 
-const templatePath = path.join(
+	const templatePath = path.join(
 		process.cwd(),
 		"src/app/templates/welcome-registration.ejs",
 	);
@@ -262,14 +245,14 @@ const templatePath = path.join(
 		html,
 	});
 
-    // Remove passwordHash from response
-    const { passwordHash: _, ...safeUser } = createdUser;
+	// Remove passwordHash from response
+	const { passwordHash: _, ...safeUser } = createdUser;
 
-    return {
-        user: safeUser,
-        accessToken,
-        refreshToken,
-    };
+	return {
+		user: safeUser,
+		accessToken,
+		refreshToken,
+	};
 };
 
 // LOGIN USER
@@ -741,5 +724,5 @@ export const AuthService = {
 	refreshToken,
 	forgotPassword,
 	resetPassword,
-	verifyRegistrationEmail
+	verifyRegistrationEmail,
 };
