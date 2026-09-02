@@ -1,6 +1,9 @@
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
+import ejs from "ejs";
 import { OAuth2Client, TokenPayload } from "google-auth-library";
 import { JwtPayload, SignOptions } from "jsonwebtoken";
+import path from "path";
 import {
 	AccountStatus,
 	AuthProvider,
@@ -8,13 +11,17 @@ import {
 } from "../../../generated/prisma/enums";
 import config from "../../config";
 import { googleClient } from "../../lib/googleAuth";
+import { transport } from "../../lib/nodemailer";
 import { prisma } from "../../lib/prisma";
+import { redisClient } from "../../lib/redis";
 import { jwtUtils } from "../../utils/jwt";
 import {
+	IForgotPasswordPayload,
 	IGoogleLoginPayload,
 	ILoginUserPayload,
 	IRegisterUserPayload,
 	IRequestUser,
+	IResetPasswordPayload,
 } from "./auth.interface";
 
 // REGISTER USER
@@ -405,6 +412,164 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 	}
 };
 
+const forgotPassword = async (payload: IForgotPasswordPayload) => {
+	const email = payload.email.trim().toLowerCase();
+
+	// 1. Check user exists
+	const existingUser = await prisma.user.findUnique({
+		where: {
+			email,
+		},
+	});
+
+	if (!existingUser) {
+		throw new Error("No account found with this email address.");
+	}
+
+	// 2. Check account status
+	if (existingUser.status === AccountStatus.BLOCKED) {
+		throw new Error(
+			"Your account has been blocked. Please contact support for assistance.",
+		);
+	}
+
+	// 3. Check authentication provider
+	if (existingUser.authProvider !== AuthProvider.CREDENTIAL) {
+		throw new Error(
+			"This account does not use a password. Please sign in using your registered authentication provider.",
+		);
+	}
+
+	// 4. Check email verification
+	if (!existingUser.isEmailVerified) {
+		throw new Error(
+			"Your email address is not verified. Please verify your email before resetting your password.",
+		);
+	}
+
+	// 5. Generate OTP
+	const otp = crypto.randomInt(100000, 1000000);
+
+	// 6. Store OTP in Redis for 5 minutes
+	const key = `forgot-password:${email}`;
+
+	await redisClient.set(key, otp.toString(), {
+		expiration: {
+			type: "EX",
+			value: 5 * 60,
+		},
+	});
+
+	const templatePath = path.join(
+		process.cwd(),
+		"src/app/templates/forgot.password.ejs",
+	);
+	const html = await ejs.renderFile(templatePath, {
+		otp,
+	});
+	transport.sendMail({
+		from: config.smtp.sender,
+		to: email,
+		subject: "Forogot Password",
+		html,
+	});
+	return {
+		message:
+			"A password reset verification code has been sent to your email address.",
+	};
+};
+
+const resetPassword = async (payload: IResetPasswordPayload) => {
+	const email = payload.email.trim().toLowerCase();
+	const { otp, newPassword } = payload;
+
+	// 3. Find user
+	const existingUser = await prisma.user.findUnique({
+		where: {
+			email,
+		},
+	});
+
+	if (!existingUser) {
+		throw new Error("No account found with this email address.");
+	}
+
+	// 4. Check account status
+	if (existingUser.status === AccountStatus.BLOCKED) {
+		throw new Error(
+			"Your account has been blocked. Please contact support for assistance.",
+		);
+	}
+
+	// 5. Check authentication provider
+	if (existingUser.authProvider !== AuthProvider.CREDENTIAL) {
+		throw new Error(
+			"This account does not use a password. Please sign in using your registered authentication provider.",
+		);
+	}
+
+	// 6. Check email verification
+	if (!existingUser.isEmailVerified) {
+		throw new Error(
+			"Your email address is not verified. Please verify your email first.",
+		);
+	}
+
+	// 7. Get OTP from Redis
+	const key = `forgot-password:${email}`;
+
+	const storedOtp = await redisClient.get(key);
+
+	if (!storedOtp) {
+		throw new Error(
+			"OTP has expired or does not exist. Please request a new OTP.",
+		);
+	}
+
+	// 8. Verify OTP
+	if (storedOtp !== otp) {
+		throw new Error("Invalid OTP. Please enter the correct OTP.");
+	}
+
+	// 9. Hash new password
+	const hashedPassword = await bcrypt.hash(
+		newPassword,
+		config.bcrypt_salt_rounds,
+	);
+
+	// 10. Update password
+	await prisma.user.update({
+		where: {
+			email,
+		},
+		data: {
+			passwordHash: hashedPassword,
+		},
+	});
+
+	// 11. Delete OTP after successful password reset
+	await redisClient.del(key);
+
+	// Render success email
+	const templatePath = path.join(
+		process.cwd(),
+		"src/app/templates/reset.password.ejs",
+	);
+
+	const html = await ejs.renderFile(templatePath);
+
+	// Send password-change notification
+	await transport.sendMail({
+		from: config.smtp.sender,
+		to: email,
+		subject: "Password Changed Successfully",
+		html,
+	});
+
+	return {
+		message: "Password reset successfully.",
+	};
+};
 // EXPORT
 
 export const AuthService = {
@@ -413,4 +578,6 @@ export const AuthService = {
 	loginUser,
 	getMe,
 	refreshToken,
+	forgotPassword,
+	resetPassword,
 };

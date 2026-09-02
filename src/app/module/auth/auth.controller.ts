@@ -71,7 +71,6 @@ const googleLogin = catchAsync(async (req: Request, res: Response) => {
 });
 
 // LOGIN USER
-
 const loginUser = catchAsync(async (req: Request, res: Response) => {
 	const payload = req.body;
 
@@ -97,7 +96,6 @@ const loginUser = catchAsync(async (req: Request, res: Response) => {
 });
 
 // GET CURRENT USER
-
 const getMe = catchAsync(async (req: Request, res: Response) => {
 	const user = req.user as IRequestUser;
 
@@ -116,7 +114,6 @@ const getMe = catchAsync(async (req: Request, res: Response) => {
 });
 
 // REFRESH TOKEN
-
 const refreshToken = catchAsync(async (req: Request, res: Response) => {
 	const token = req.cookies.refreshToken;
 
@@ -146,8 +143,7 @@ const refreshToken = catchAsync(async (req: Request, res: Response) => {
 });
 
 // LOGOUT USER
-
-const logoutUser = catchAsync(async (_req: Request, res: Response) => {
+const logoutUser = catchAsync(async (req: Request, res: Response) => {
 	// Clear authentication cookies
 	res.clearCookie("accessToken", {
 		httpOnly: true,
@@ -169,6 +165,28 @@ const logoutUser = catchAsync(async (_req: Request, res: Response) => {
 	});
 });
 
+const forgotPassword = catchAsync(async (req: Request, res: Response) => {
+	const payload = req.body;
+	const result = await AuthService.forgotPassword(payload);
+	sendResponse(res, {
+		statusCode: httpStatus.OK,
+		success: true,
+		message: result.message,
+		data:null,
+	});
+});
+
+const resetPassword = catchAsync(async (req: Request, res: Response) => {
+	const payload = req.body;
+	const result = await AuthService.resetPassword(payload);
+	sendResponse(res, {
+		statusCode: httpStatus.OK,
+		success: true,
+		message:result.message,
+		data:null,
+	});
+});
+
 // EXPORT
 
 export const AuthController = {
@@ -178,4 +196,6 @@ export const AuthController = {
 	getMe,
 	refreshToken,
 	logoutUser,
+	forgotPassword,
+	resetPassword,
 };

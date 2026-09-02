@@ -51,10 +51,7 @@ const RegisterUserZodSchema = z.object({
 const LoginUserZodSchema = z.object({
 	email: z.email("Please provide a valid email address."),
 
-	password: z.string("Password is required").min(
-		1,
-		"Password is required",
-	),
+	password: z.string("Password is required").min(1, "Password is required"),
 });
 
 // GOOGLE LOGIN
@@ -84,6 +81,17 @@ const ForgotPasswordZodSchema = z.object({
 
 // RESET PASSWORD
 
+// REFRESH TOKEN
+
+// Use this only if refreshToken comes through req.body
+const RefreshTokenZodSchema = z.object({
+	refreshToken: z
+		.string("Refresh token is required")
+		.min(1, "Refresh token is required"),
+});
+
+// RESET PASSWORD
+
 const ResetPasswordZodSchema = z.object({
 	email: z.email("Please provide a valid email address."),
 
@@ -93,15 +101,6 @@ const ResetPasswordZodSchema = z.object({
 		.regex(/^\d{6}$/, "OTP must contain only digits"),
 
 	newPassword: passwordSchema,
-});
-
-// REFRESH TOKEN
-
-// Use this only if refreshToken comes through req.body
-const RefreshTokenZodSchema = z.object({
-	refreshToken: z
-		.string("Refresh token is required")
-		.min(1, "Refresh token is required"),
 });
 
 // EXPORT
