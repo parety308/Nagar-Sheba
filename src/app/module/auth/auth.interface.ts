@@ -1,4 +1,3 @@
-
 import { Role } from "../../../generated/prisma/browser";
 
 // LOGIN USER PAYLOAD
@@ -26,3 +25,8 @@ export interface IRequestUser {
 	role: Role;
 }
 
+// GOOGLE lOGIN PAYLOAD
+
+export interface IGoogleLoginPayload {
+	idToken: string;
+}

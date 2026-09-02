@@ -1,4 +1,3 @@
-
 import { Request, Response } from "express";
 import httpStatus from "http-status";
 import { catchAsync } from "../../utils/catchAsync";
@@ -32,18 +31,10 @@ const registerUser = catchAsync(async (req: Request, res: Response) => {
 	const { accessToken, refreshToken, user } = result;
 
 	// Set access token cookie
-	res.cookie(
-		"accessToken",
-		accessToken,
-		accessTokenCookieOptions,
-	);
+	res.cookie("accessToken", accessToken, accessTokenCookieOptions);
 
 	// Set refresh token cookie
-	res.cookie(
-		"refreshToken",
-		refreshToken,
-		refreshTokenCookieOptions,
-	);
+	res.cookie("refreshToken", refreshToken, refreshTokenCookieOptions);
 
 	sendResponse(res, {
 		statusCode: httpStatus.CREATED,
@@ -51,6 +42,28 @@ const registerUser = catchAsync(async (req: Request, res: Response) => {
 		message: "User registered successfully",
 		data: {
 			user,
+			accessToken,
+			refreshToken,
+		},
+	});
+});
+
+//GOOGLE LOGIN
+const googleLogin = catchAsync(async (req: Request, res: Response) => {
+	const payload = req.body;
+	const result = await AuthService.googleLogin(payload);
+	const { accessToken, refreshToken } = result;
+
+	// Set access token cookie
+	res.cookie("accessToken", accessToken, accessTokenCookieOptions);
+
+	// Set refresh token cookie
+	res.cookie("refreshToken", refreshToken, refreshTokenCookieOptions);
+	sendResponse(res, {
+		statusCode: httpStatus.OK,
+		success: true,
+		message: "Google Login Successfully",
+		data: {
 			accessToken,
 			refreshToken,
 		},
@@ -67,18 +80,10 @@ const loginUser = catchAsync(async (req: Request, res: Response) => {
 	const { accessToken, refreshToken } = result;
 
 	// Set access token cookie
-	res.cookie(
-		"accessToken",
-		accessToken,
-		accessTokenCookieOptions,
-	);
+	res.cookie("accessToken", accessToken, accessTokenCookieOptions);
 
 	// Set refresh token cookie
-	res.cookie(
-		"refreshToken",
-		refreshToken,
-		refreshTokenCookieOptions,
-	);
+	res.cookie("refreshToken", refreshToken, refreshTokenCookieOptions);
 
 	sendResponse(res, {
 		statusCode: httpStatus.OK,
@@ -121,24 +126,13 @@ const refreshToken = catchAsync(async (req: Request, res: Response) => {
 
 	const result = await AuthService.refreshToken(token);
 
-	const {
-		accessToken,
-		refreshToken: newRefreshToken,
-	} = result;
+	const { accessToken, refreshToken: newRefreshToken } = result;
 
 	// Set new access token
-	res.cookie(
-		"accessToken",
-		accessToken,
-		accessTokenCookieOptions,
-	);
+	res.cookie("accessToken", accessToken, accessTokenCookieOptions);
 
 	// Rotate refresh token
-	res.cookie(
-		"refreshToken",
-		newRefreshToken,
-		refreshTokenCookieOptions,
-	);
+	res.cookie("refreshToken", newRefreshToken, refreshTokenCookieOptions);
 
 	sendResponse(res, {
 		statusCode: httpStatus.OK,
@@ -179,9 +173,9 @@ const logoutUser = catchAsync(async (_req: Request, res: Response) => {
 
 export const AuthController = {
 	registerUser,
+	googleLogin,
 	loginUser,
 	getMe,
 	refreshToken,
 	logoutUser,
 };
-

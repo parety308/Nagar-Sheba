@@ -45,3 +45,7 @@ enum AttachmentType {
 enum NotificationChannel {
   EMAIL
 }
+enum AuthProvider{
+  CREDENTIAL
+  GOOGLE
+}
