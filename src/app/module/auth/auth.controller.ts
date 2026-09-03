@@ -7,7 +7,7 @@ import { IRequestUser } from "./auth.interface";
 import { AuthService } from "./auth.service";
 import { authValidationSchemas } from "./auth.validation";
 
-// COOKIE OPTIONS
+
 const isProd = process.env.NODE_ENV === "production";
 const accessTokenCookieOptions = {
 	httpOnly: true,
@@ -23,7 +23,7 @@ const refreshTokenCookieOptions = {
 	maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
 };
 
-// REGISTER USER
+
 
 const registerUser = catchAsync(async (req: Request, res: Response) => {
 	const payload = req.body;
@@ -38,7 +38,6 @@ const registerUser = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-// VERIFY CITIZEN EMAIL
 
 const verifyCitizenEmail = catchAsync(async (req: Request, res: Response) => {
 	const payload = req.body;
@@ -63,7 +62,7 @@ const verifyCitizenEmail = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-//GOOGLE LOGIN
+
 const googleLogin = catchAsync(async (req: Request, res: Response) => {
 	const payload = req.body;
 	const result = await AuthService.googleLogin(payload);
@@ -85,7 +84,7 @@ const googleLogin = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-// LOGIN USER
+
 const loginUser = catchAsync(async (req: Request, res: Response) => {
 	const payload = req.body;
 
@@ -110,12 +109,12 @@ const loginUser = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-// GET CURRENT USER
+
 const getMe = catchAsync(async (req: Request, res: Response) => {
 	const user = req.user as IRequestUser;
 
 	if (!user) {
-		throw new Error("User information is missing in the request");
+		throw new AppError(httpStatus.UNAUTHORIZED, "User information is missing in the request");
 	}
 
 	const result = await AuthService.getMe(user);
@@ -128,12 +127,11 @@ const getMe = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-// REFRESH TOKEN
 const refreshToken = catchAsync(async (req: Request, res: Response) => {
 	const token = req.cookies.refreshToken;
 
 	if (!token) {
-		throw new Error("Refresh token is missing");
+		throw new AppError(httpStatus.UNAUTHORIZED, "Refresh token is missing");
 	}
 
 	const result = await AuthService.refreshToken(token);
@@ -157,7 +155,6 @@ const refreshToken = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-// LOGOUT USER
 const logoutUser = catchAsync(async (req: Request, res: Response) => {
 	// Clear authentication cookies
 	res.clearCookie("accessToken", {
@@ -244,7 +241,25 @@ const updateProfileImage = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-// EXPORT
+const updateMyProfile = catchAsync(async (req: Request, res: Response) => {
+	const user = req.user as IRequestUser;
+
+	if (!user) {
+		throw new AppError(
+			httpStatus.UNAUTHORIZED,
+			"User information is missing in the request",
+		);
+	}
+
+	const result = await AuthService.updateMyProfile(user, req.body);
+
+	sendResponse(res, {
+		statusCode: httpStatus.OK,
+		success: true,
+		message: "Profile updated successfully",
+		data: result,
+	});
+});
 
 export const AuthController = {
 	registerUser,
@@ -257,4 +272,5 @@ export const AuthController = {
 	resetPassword,
 	verifyCitizenEmail,
 	updateProfileImage,
+	updateMyProfile
 };

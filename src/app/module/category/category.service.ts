@@ -1,5 +1,5 @@
 import httpStatus from "http-status";
-import { RequestStatus, Role } from "../../../generated/prisma/enums";
+import { Role } from "../../../generated/prisma/enums";
 import { AppError } from "../../errors/AppError";
 import { prisma } from "../../lib/prisma";
 import {
@@ -160,26 +160,11 @@ const updateCategory = async (id: string, payload: IUpdateCategoryPayload) => {
 };
 
 // SOFT DELETE CATEGORY
-
 const deleteCategory = async (id: string) => {
 	const category = await prisma.category.findUnique({ where: { id } });
 
 	if (!category || category.deletedAt) {
 		throw new AppError(httpStatus.NOT_FOUND, "Category not found");
-	}
-
-	const openRequestCount = await prisma.serviceRequest.count({
-		where: {
-			categoryId: id,
-			status: { notIn: [RequestStatus.CLOSED, RequestStatus.CANCELLED] },
-		},
-	});
-
-	if (openRequestCount > 0) {
-		throw new AppError(
-			httpStatus.BAD_REQUEST,
-			"Cannot delete a category with open (non-closed) service requests referencing it",
-		);
 	}
 
 	const deleted = await prisma.category.update({

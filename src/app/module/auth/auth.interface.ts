@@ -55,3 +55,9 @@ export interface IUpdateProfileImagePayload {
 	userId: string;
 	file: Express.Multer.File;
 }
+export interface IUpdateProfilePayload {
+	fullName?: string;
+	phone?: string;   
+	address?: string; 
+	title?: string;  
+}

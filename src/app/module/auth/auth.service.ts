@@ -31,9 +31,9 @@ import {
 	IRequestUser,
 	IResetPasswordPayload,
 	IUpdateProfileImagePayload,
+	IUpdateProfilePayload,
 } from "./auth.interface";
 
-// REGISTER USER
 
 const registerUser = async (payload: IRegisterUserPayload) => {
 	const { fullName, email: rawEmail, password, phone, address } = payload;
@@ -812,7 +812,71 @@ const updateProfileImage = async (payload: IUpdateProfileImagePayload) => {
 	return safeUser;
 };
 
-// EXPORT
+const updateMyProfile = async (user: IRequestUser,payload: IUpdateProfilePayload) => {
+	const currentUser = await prisma.user.findUnique({
+		where: { id: user.userId },
+	});
+
+	if (!currentUser) {
+		throw new AppError(httpStatus.NOT_FOUND, "User not found");
+	}
+
+	if (currentUser.deletedAt) {
+		throw new AppError(httpStatus.FORBIDDEN, "Your account has been deleted.");
+	}
+
+	if (currentUser.status === AccountStatus.BLOCKED) {
+		throw new AppError(httpStatus.FORBIDDEN, "Your account has been blocked.");
+	}
+
+	switch (currentUser.role) {
+		case Role.CITIZEN:
+			await prisma.citizenProfile.update({
+				where: { userId: user.userId },
+				data: {
+					fullName: payload.fullName,
+					phone: payload.phone,
+					address: payload.address,
+				},
+			});
+			break;
+
+		case Role.STAFF:
+			await prisma.staffProfile.update({
+				where: { userId: user.userId },
+				data: {
+					fullName: payload.fullName,
+					title: payload.title,
+				},
+			});
+			break;
+
+		case Role.ADMIN:
+			await prisma.adminProfile.update({
+				where: { userId: user.userId },
+				data: {
+					fullName: payload.fullName,
+				},
+			});
+			break;
+
+		default:
+			throw new AppError(httpStatus.BAD_REQUEST, "Unsupported role");
+	}
+
+	const updatedUser = await prisma.user.findUnique({
+		where: { id: user.userId },
+		include: {
+			citizenProfile: true,
+			staffProfile: { include: { department: true } },
+			adminProfile: true,
+		},
+	});
+
+	const { passwordHash: _, ...safeUser } = updatedUser!;
+
+	return safeUser;
+};
 
 export const AuthService = {
 	registerUser,
@@ -824,4 +888,5 @@ export const AuthService = {
 	resetPassword,
 	verifyRegistrationEmail,
 	updateProfileImage,
+	updateMyProfile
 };

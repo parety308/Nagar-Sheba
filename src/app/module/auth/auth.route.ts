@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { validate } from "zod";
 import { auth } from "../../middleware/auth";
 import { upload } from "../../middleware/upload";
 import { validateRequestBody } from "../../middleware/validateRequest";
@@ -8,9 +7,9 @@ import { authValidationSchemas } from "./auth.validation";
 
 const router = Router();
 
-// AUTH ROUTES
 
-// Register Citizen
+
+
 router.post(
 	"/register",
 	validateRequestBody(authValidationSchemas.RegisterUserZodSchema),
@@ -28,7 +27,8 @@ router.post(
 	validateRequestBody(authValidationSchemas.GoogleLoginZodSchema),
 	AuthController.googleLogin,
 );
-// Login
+
+
 router.post(
 	"/login",
 	validateRequestBody(authValidationSchemas.LoginUserZodSchema),
@@ -46,10 +46,11 @@ router.post(
 	validateRequestBody(authValidationSchemas.ResetPasswordZodSchema),
 	AuthController.resetPassword,
 );
-// Get currently authenticated user
+
+
 router.get("/me", auth(), AuthController.getMe);
 
-// Refresh access + refresh token
+
 router.post(
 	"/refresh-token",
 	validateRequestBody(authValidationSchemas.RefreshTokenZodSchema),
@@ -63,7 +64,14 @@ router.patch(
 	AuthController.updateProfileImage,
 );
 
-// Logout
+
 router.post("/logout", AuthController.logoutUser);
+
+router.patch(
+	"/me",
+	auth(),
+	validateRequestBody(authValidationSchemas.UpdateProfileZodSchema),
+	AuthController.updateMyProfile,
+);
 
 export const AuthRoutes = router;

@@ -8,8 +8,7 @@ import {
 	IUpdateDepartmentPayload,
 } from "./department.interface";
 
-// CREATE DEPARTMENT
-
+// create a new dept
 const createDepartment = async (payload: ICreateDepartmentPayload) => {
 	const existingDepartment = await prisma.department.findUnique({
 		where: { name: payload.name },
@@ -128,41 +127,6 @@ const deleteDepartment = async (id: string) => {
 		throw new AppError(httpStatus.NOT_FOUND, "Department not found");
 	}
 
-	const [activeCategoryCount, activeStaffCount, openRequestCount] =
-		await Promise.all([
-			prisma.category.count({
-				where: { departmentId: id, deletedAt: null },
-			}),
-			prisma.staffProfile.count({ where: { departmentId: id } }),
-			prisma.serviceRequest.count({
-				where: {
-					departmentId: id,
-					status: { notIn: ["CLOSED", "CANCELLED"] },
-				},
-			}),
-		]);
-
-	if (activeCategoryCount > 0) {
-		throw new AppError(
-			httpStatus.BAD_REQUEST,
-			"Cannot delete a department that still has active categories. Soft-delete or move its categories first.",
-		);
-	}
-
-	if (activeStaffCount > 0) {
-		throw new AppError(
-			httpStatus.BAD_REQUEST,
-			"Cannot delete a department that still has staff assigned to it. Reassign its staff first.",
-		);
-	}
-
-	if (openRequestCount > 0) {
-		throw new AppError(
-			httpStatus.BAD_REQUEST,
-			"Cannot delete a department with open (non-closed) service requests.",
-		);
-	}
-
 	const deleted = await prisma.department.update({
 		where: { id },
 		data: { deletedAt: new Date() },
@@ -170,7 +134,6 @@ const deleteDepartment = async (id: string) => {
 
 	return deleted;
 };
-
 export const DepartmentService = {
 	createDepartment,
 	getAllDepartments,

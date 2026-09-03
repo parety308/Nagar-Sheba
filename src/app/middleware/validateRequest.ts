@@ -1,5 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
+import httpStatus from "http-status";
 import type * as z from "zod";
+import { AppError } from "../errors/AppError";
 import { catchAsync } from "../utils/catchAsync";
 
 export const validateRequestBody = (schema: z.ZodType) => {
@@ -7,13 +9,15 @@ export const validateRequestBody = (schema: z.ZodType) => {
 		const result = schema.safeParse(req.body);
 
 		if (!result.success) {
-			throw new Error(
-				result.error.issues.map((issue) => issue.message).join(", "),
-			);
+			const errorMessages = result.error.issues.map((issue) => ({
+				path: issue.path.join("."),
+				message: issue.message,
+			}));
+
+			throw new AppError(httpStatus.BAD_REQUEST, "Validation failed", errorMessages);
 		}
 
 		req.body = result.data;
-
 		next();
 	});
 };
