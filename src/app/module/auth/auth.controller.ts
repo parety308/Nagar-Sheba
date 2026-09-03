@@ -1,16 +1,19 @@
 import { Request, Response } from "express";
 import httpStatus from "http-status";
+import { AppError } from "../../errors/AppError";
 import { catchAsync } from "../../utils/catchAsync";
 import { sendResponse } from "../../utils/sendResponse";
 import { IRequestUser } from "./auth.interface";
 import { AuthService } from "./auth.service";
+import { authValidationSchemas } from "./auth.validation";
 
 // COOKIE OPTIONS
+const isProd = process.env.NODE_ENV === "production";
 const accessTokenCookieOptions = {
 	httpOnly: true,
-	secure: process.env.NODE_ENV === "production",
-	sameSite: "none" as const,
-	maxAge: 1000 * 60 * 60 * 24, // 1 day
+	secure: isProd,
+	sameSite: (isProd ? "none" : "lax") as "none" | "lax",
+	maxAge: 1000 * 60 * 60 * 24,
 };
 
 const refreshTokenCookieOptions = {
@@ -199,6 +202,48 @@ const resetPassword = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
+const updateProfileImage = catchAsync(async (req: Request, res: Response) => {
+	const user = req.user as IRequestUser;
+
+	if (!user) {
+		throw new AppError(
+			httpStatus.UNAUTHORIZED,
+			"User information is missing in the request",
+		);
+	}
+
+	if (!req.file) {
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			"Profile image file is required",
+		);
+	}
+
+	const parsed = authValidationSchemas.ProfileImageZodSchema.safeParse({
+		mimetype: req.file.mimetype,
+		size: req.file.size,
+	});
+
+	if (!parsed.success) {
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			parsed.error.issues.map((i) => i.message).join(", "),
+		);
+	}
+
+	const result = await AuthService.updateProfileImage({
+		userId: user.userId,
+		file: req.file,
+	});
+
+	sendResponse(res, {
+		statusCode: httpStatus.OK,
+		success: true,
+		message: "Profile image updated successfully",
+		data: result,
+	});
+});
+
 // EXPORT
 
 export const AuthController = {
@@ -211,4 +256,5 @@ export const AuthController = {
 	forgotPassword,
 	resetPassword,
 	verifyCitizenEmail,
+	updateProfileImage,
 };

@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { validate } from "zod";
+import { auth } from "../../middleware/auth";
+import { upload } from "../../middleware/upload";
 import { validateRequestBody } from "../../middleware/validateRequest";
 import { AuthController } from "./auth.controller";
 import { authValidationSchemas } from "./auth.validation";
-import { auth } from "../../middleware/auth";
 
 const router = Router();
 
@@ -46,13 +47,20 @@ router.post(
 	AuthController.resetPassword,
 );
 // Get currently authenticated user
-router.get("/me", auth() ,AuthController.getMe);
+router.get("/me", auth(), AuthController.getMe);
 
 // Refresh access + refresh token
 router.post(
 	"/refresh-token",
 	validateRequestBody(authValidationSchemas.RefreshTokenZodSchema),
 	AuthController.refreshToken,
+);
+
+router.patch(
+	"/me/profile-image",
+	auth(),
+	upload.single("profileImage"),
+	AuthController.updateProfileImage,
 );
 
 // Logout

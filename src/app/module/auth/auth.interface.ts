@@ -1,4 +1,3 @@
-
 import { Role } from "../../../generated/prisma/enums";
 
 export interface ILoginUserPayload {
@@ -50,4 +49,9 @@ export interface IResetPasswordPayload {
 	email: string;
 	otp: string;
 	newPassword: string;
+}
+
+export interface IUpdateProfileImagePayload {
+	userId: string;
+	file: Express.Multer.File;
 }

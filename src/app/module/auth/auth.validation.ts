@@ -109,6 +109,17 @@ const CitizenEmailVerifyZodSchema = z.object({
 		.string("OTP is required.")
 		.length(6, "OTP must be exactly 6 digits long."),
 });
+
+const ProfileImageZodSchema = z.object({
+	mimetype: z
+		.string()
+		.refine(
+			(val) =>
+				["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(val),
+			"Only JPEG, PNG or WEBP images are allowed",
+		),
+	size: z.number().max(5 * 1024 * 1024, "Image must be smaller than 5MB"),
+});
 // EXPORT
 
 export const authValidationSchemas = {
@@ -120,4 +131,5 @@ export const authValidationSchemas = {
 	ResetPasswordZodSchema,
 	RefreshTokenZodSchema,
 	CitizenEmailVerifyZodSchema,
+	ProfileImageZodSchema,
 };
