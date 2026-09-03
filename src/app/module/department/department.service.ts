@@ -43,7 +43,8 @@ const getAllDepartments = async (
 	const skip = (page - 1) * limit;
 
 	// Only an Admin may ask to see soft-deleted departments
-	const includeInactive =requesterRole === Role.ADMIN && !!query.includeInactive;
+	const includeInactive =
+		requesterRole === Role.ADMIN && !!query.includeInactive;
 
 	const where = includeInactive ? {} : { deletedAt: null };
 
@@ -82,7 +83,7 @@ const getSingleDepartment = async (id: string) => {
 	return department;
 };
 
-//update department 
+//update department
 
 const updateDepartment = async (
 	id: string,
@@ -126,7 +127,6 @@ const deleteDepartment = async (id: string) => {
 	if (!department || department.deletedAt) {
 		throw new AppError(httpStatus.NOT_FOUND, "Department not found");
 	}
-
 
 	const [activeCategoryCount, activeStaffCount, openRequestCount] =
 		await Promise.all([

@@ -7,12 +7,8 @@ import { departmentValidationSchemas } from "./department.validation";
 
 const router = Router();
 
-
-
-
 router.get("/", auth(), DepartmentController.getAllDepartments);
 router.get("/:id", auth(), DepartmentController.getSingleDepartment);
-
 
 // admin only writes
 router.post(

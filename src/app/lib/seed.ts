@@ -180,10 +180,9 @@ export const seed = async (): Promise<void> => {
 		const adminPasswordHash = await bcrypt.hash(ADMIN_PASSWORD, SALT_ROUNDS);
 
 		await tx.user.upsert({
-			where: {
-				email: ADMIN_EMAIL,
-			},
+			where: { email: ADMIN_EMAIL },
 			update: {
+				passwordHash: adminPasswordHash,
 				role: Role.ADMIN,
 				status: AccountStatus.ACTIVE,
 				isEmailVerified: true,
@@ -197,9 +196,7 @@ export const seed = async (): Promise<void> => {
 				isEmailVerified: true,
 				mustChangePassword: false,
 				adminProfile: {
-					create: {
-						fullName: "Nagar-Sheba Platform Admin",
-					},
+					create: { fullName: "Nagar-Sheba Platform Admin" },
 				},
 			},
 		});
@@ -220,6 +217,7 @@ export const seed = async (): Promise<void> => {
 					email: staff.email,
 				},
 				update: {
+					passwordHash: staffPasswordHash,
 					role: Role.STAFF,
 					status: AccountStatus.ACTIVE,
 					isEmailVerified: true,

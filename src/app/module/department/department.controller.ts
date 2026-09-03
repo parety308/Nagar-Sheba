@@ -41,7 +41,9 @@ const getAllDepartments = catchAsync(async (req: Request, res: Response) => {
 
 // get signle department
 const getSingleDepartment = catchAsync(async (req: Request, res: Response) => {
-	const result = await DepartmentService.getSingleDepartment(req.params.id as string);
+	const result = await DepartmentService.getSingleDepartment(
+		req.params.id as string,
+	);
 
 	sendResponse(res, {
 		statusCode: httpStatus.OK,
@@ -68,7 +70,9 @@ const updateDepartment = catchAsync(async (req: Request, res: Response) => {
 
 // delete soft department
 const deleteDepartment = catchAsync(async (req: Request, res: Response) => {
-	const result = await DepartmentService.deleteDepartment(req.params.id as string);
+	const result = await DepartmentService.deleteDepartment(
+		req.params.id as string,
+	);
 
 	sendResponse(res, {
 		statusCode: httpStatus.OK,

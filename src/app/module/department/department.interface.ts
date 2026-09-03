@@ -11,5 +11,5 @@ export interface IUpdateDepartmentPayload {
 export interface IDepartmentQuery {
 	page?: number;
 	limit?: number;
-	includeInactive?: boolean; 
+	includeInactive?: boolean;
 }
