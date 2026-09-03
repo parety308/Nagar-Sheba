@@ -3,6 +3,7 @@ import { validate } from "zod";
 import { validateRequestBody } from "../../middleware/validateRequest";
 import { AuthController } from "./auth.controller";
 import { authValidationSchemas } from "./auth.validation";
+import { auth } from "../../middleware/auth";
 
 const router = Router();
 
@@ -45,7 +46,7 @@ router.post(
 	AuthController.resetPassword,
 );
 // Get currently authenticated user
-router.get("/me", AuthController.getMe);
+router.get("/me", auth() ,AuthController.getMe);
 
 // Refresh access + refresh token
 router.post(

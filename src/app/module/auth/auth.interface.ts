@@ -1,6 +1,5 @@
-import { Role } from "../../../generated/prisma/browser";
 
-// LOGIN USER PAYLOAD
+import { Role } from "../../../generated/prisma/enums";
 
 export interface ILoginUserPayload {
 	email: string;
