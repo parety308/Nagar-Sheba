@@ -55,7 +55,7 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 	}
 
 	// Hash password
-	const passwordHash = await bcrypt.hash(password, 10);
+	const passwordHash = await bcrypt.hash(password, config.bcrypt_salt_rounds);
 
 	// Data to store temporarily in Redis
 	const redisPayload: IRegistrationRedisPayload = {
@@ -659,7 +659,7 @@ const forgotPassword = async (payload: IForgotPasswordPayload) => {
 	const html = await ejs.renderFile(templatePath, {
 		otp,
 	});
-	transport.sendMail({
+	await transport.sendMail({
 		from: config.smtp.sender,
 		to: email,
 		subject: "Forogot Password",

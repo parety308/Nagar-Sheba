@@ -25,6 +25,7 @@ enum RequestStatus {
 }
 
 enum PaymentProvider {
+  BKASH
   STRIPE
   SSLCOMMERZ
 }

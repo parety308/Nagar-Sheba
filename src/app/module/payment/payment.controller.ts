@@ -10,6 +10,7 @@ const initiatePayment = catchAsync(async (req: Request, res: Response) => {
 	const result = await PaymentService.initiatePaymentSession(
 		req.body.requestId,
 		actor.userId,
+		req.body.provider,
 	);
 
 	sendResponse(res, {
@@ -20,36 +21,44 @@ const initiatePayment = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-// SSLCommerz posts application/x-www-form-urlencoded here — the global
-// express.urlencoded() in app.ts already parses it, no raw-body handling
-// needed like Stripe's signature check required.
+// ---- SSLCommerz ----
 
-const handleIPN = catchAsync(async (req: Request, res: Response) => {
-	const result = await PaymentService.handleIPN(req.body);
+const handleSSLCommerzIPN = catchAsync(async (req: Request, res: Response) => {
+	const result = await PaymentService.handleSSLCommerzIPN(req.body);
 	res.status(httpStatus.OK).json(result);
 });
 
-const handleSuccess = catchAsync(async (req: Request, res: Response) => {
-	const redirectUrl = await PaymentService.handleSuccessRedirect(req.body);
+const handleSSLCommerzSuccess = catchAsync(async (req: Request, res: Response) => {
+	const redirectUrl = await PaymentService.handleSSLCommerzSuccessRedirect(req.body);
 	res.redirect(redirectUrl);
 });
 
-const handleFail = catchAsync(async (req: Request, res: Response) => {
-	const redirectUrl = await PaymentService.handleFailRedirect(req.body);
+const handleSSLCommerzFail = catchAsync(async (req: Request, res: Response) => {
+	const redirectUrl = await PaymentService.handleSSLCommerzFailRedirect(req.body);
 	res.redirect(redirectUrl);
 });
 
-const handleCancel = catchAsync(async (req: Request, res: Response) => {
-	const redirectUrl = await PaymentService.handleCancelRedirect(req.body);
+const handleSSLCommerzCancel = catchAsync(async (req: Request, res: Response) => {
+	const redirectUrl = await PaymentService.handleSSLCommerzCancelRedirect(req.body);
 	res.redirect(redirectUrl);
 });
+
+// ---- bKash ----
+// bKash calls back with GET ?paymentID=...&status=success|failure|cancel
+
+const handleBkashCallback = catchAsync(async (req: Request, res: Response) => {
+	const redirectUrl = await PaymentService.handleBkashCallback({
+		paymentID: req.query.paymentID as string | undefined,
+		status: req.query.status as string | undefined,
+	});
+	res.redirect(redirectUrl);
+});
+
+// ---- Read ----
 
 const getSinglePayment = catchAsync(async (req: Request, res: Response) => {
 	const actor = req.user as IRequestUser;
-	const result = await PaymentService.getSinglePayment(
-		req.params.id as string,
-		actor,
-	);
+	const result = await PaymentService.getSinglePayment(req.params.id as string, actor);
 
 	sendResponse(res, {
 		statusCode: httpStatus.OK,
@@ -84,10 +93,11 @@ const getAllPayments = catchAsync(async (req: Request, res: Response) => {
 
 export const PaymentController = {
 	initiatePayment,
-	handleIPN,
-	handleSuccess,
-	handleFail,
-	handleCancel,
+	handleSSLCommerzIPN,
+	handleSSLCommerzSuccess,
+	handleSSLCommerzFail,
+	handleSSLCommerzCancel,
+	handleBkashCallback,
 	getSinglePayment,
 	getAllPayments,
 };

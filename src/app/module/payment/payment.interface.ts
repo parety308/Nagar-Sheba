@@ -1,5 +1,6 @@
 export interface IInitiatePaymentPayload {
 	requestId: string;
+	provider: "SSLCOMMERZ" | "BKASH";
 }
 
 export interface IPaymentQuery {

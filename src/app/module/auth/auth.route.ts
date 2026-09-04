@@ -4,23 +4,21 @@ import { upload } from "../../middleware/upload";
 import { validateRequestBody } from "../../middleware/validateRequest";
 import { AuthController } from "./auth.controller";
 import { authValidationSchemas } from "./auth.validation";
+import { otpLimiter } from "../../middleware/rateLimiter";
 
 const router = Router();
 
-router.post(
-	"/register",
+router.post("/register",otpLimiter,
 	validateRequestBody(authValidationSchemas.RegisterUserZodSchema),
 	AuthController.registerUser,
 );
 
-router.post(
-	"/verify-email",
+router.post("/verify-email",
 	validateRequestBody(authValidationSchemas.CitizenEmailVerifyZodSchema),
 	AuthController.verifyCitizenEmail,
 );
 
-router.post(
-	"/google-login",
+router.post("/google-login",
 	validateRequestBody(authValidationSchemas.GoogleLoginZodSchema),
 	AuthController.googleLogin,
 );
@@ -31,8 +29,7 @@ router.post(
 	AuthController.loginUser,
 );
 
-router.post(
-	"/forgot-password",
+router.post("/forgot-password",otpLimiter,
 	validateRequestBody(authValidationSchemas.ForgotPasswordZodSchema),
 	AuthController.forgotPassword,
 );

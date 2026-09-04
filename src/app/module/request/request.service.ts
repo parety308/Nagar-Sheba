@@ -316,25 +316,19 @@ const CANCELLABLE_STATUSES: RequestStatus[] = [
 	RequestStatus.ASSIGNED,
 ];
 
+
+
 const cancelServiceRequest = async (id: string, citizenId: string) => {
 	const request = await prisma.serviceRequest.findUnique({ where: { id } });
 
 	if (!request || request.deletedAt) {
 		throw new AppError(httpStatus.NOT_FOUND, "Service request not found");
 	}
-
 	if (request.citizenId !== citizenId) {
-		throw new AppError(
-			httpStatus.FORBIDDEN,
-			"You do not have permission to cancel this request",
-		);
+		throw new AppError(httpStatus.FORBIDDEN, "You do not have permission to cancel this request");
 	}
-
 	if (!CANCELLABLE_STATUSES.includes(request.status)) {
-		throw new AppError(
-			httpStatus.CONFLICT,
-			`A request in ${request.status} status can no longer be cancelled`,
-		);
+		throw new AppError(httpStatus.CONFLICT, `A request in ${request.status} status can no longer be cancelled`);
 	}
 
 	const [, updated] = await prisma.$transaction([
@@ -353,14 +347,15 @@ const cancelServiceRequest = async (id: string, citizenId: string) => {
 		}),
 	]);
 
+	// Refund if a completed payment exists for this request
+	await PaymentService.refundPaymentForRequest(id);
+
 	return updated;
 };
 
 const REOPEN_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 
-const STAFF_ALLOWED_TRANSITIONS: Partial<
-	Record<RequestStatus, RequestStatus[]>
-> = {
+const STAFF_ALLOWED_TRANSITIONS: Partial<Record<RequestStatus, RequestStatus[]>> = {
 	[RequestStatus.ASSIGNED]: [RequestStatus.IN_PROGRESS],
 	[RequestStatus.IN_PROGRESS]: [RequestStatus.RESOLVED],
 };

@@ -1,7 +1,10 @@
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express, { Application, Request, Response } from "express";
+import helmet from "helmet";
 import httpStatus from "http-status";
+import rateLimit from "express-rate-limit";
+
 import config from "./app/config";
 import { globalErrorHandler } from "./app/middleware/globalErrorHandler";
 import { notFound } from "./app/middleware/notFound";
@@ -9,11 +12,23 @@ import { AdminRoutes } from "./app/module/admin/admin.route";
 import { AuthRoutes } from "./app/module/auth/auth.route";
 import { CategoryRoutes } from "./app/module/category/category.route";
 import { DepartmentRoutes } from "./app/module/department/department.route";
-import { PaymentController } from "./app/module/payment/payment.controller";
 import { PaymentRoutes } from "./app/module/payment/payment.route";
 import { RequestRoutes } from "./app/module/request/request.route";
 
 const app: Application = express();
+
+// Security headers
+app.use(helmet());
+
+// App-wide rate limiter
+app.use(
+	rateLimit({
+		windowMs: 15 * 60 * 1000,
+		max: 300,
+		standardHeaders: true,
+		legacyHeaders: false,
+	}),
+);
 
 app.use(
 	cors({
