@@ -33,7 +33,37 @@ const updateUserStatus = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
+const getAuditLogs = catchAsync(async (req: Request, res: Response) => {
+	const result = await AdminService.getAuditLogs({
+		page: Number(req.query.page),
+		limit: Number(req.query.limit),
+		entityType: req.query.entityType as string | undefined,
+		actorId: req.query.actorId as string | undefined,
+	});
+
+	sendResponse(res, {
+		statusCode: httpStatus.OK,
+		success: true,
+		message: "Audit logs fetched successfully",
+		data: result.data,
+		meta: result.meta,
+	});
+});
+
+const getDashboardStats = catchAsync(async (req: Request, res: Response) => {
+	const result = await AdminService.getDashboardStats();
+
+	sendResponse(res, {
+		statusCode: httpStatus.OK,
+		success: true,
+		message: "Dashboard stats fetched successfully",
+		data: result,
+	});
+});
+
 export const AdminController = {
 	provisionStaff,
 	updateUserStatus,
+	getAuditLogs,
+	getDashboardStats,
 };

@@ -12,3 +12,10 @@ export interface IProvisionStaffPayload {
 export interface IUpdateUserStatusPayload {
 	status: "ACTIVE" | "BLOCKED";
 }
+
+export interface IAuditLogQuery {
+	page?: number;
+	limit?: number;
+	entityType?: string;
+	actorId?: string;
+}

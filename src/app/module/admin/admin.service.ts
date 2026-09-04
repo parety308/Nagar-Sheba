@@ -18,9 +18,9 @@ import {
 	IUpdateUserStatusPayload,
 } from "./admin.interface";
 
-// TEMPORARY PASSWORD GENERATOR
-// Guarantees at least one upper/lower/digit/special char so it satisfies
-// the same strength rule as authValidationSchemas' passwordSchema.
+import { RequestStatus } from "../../../generated/prisma/enums";
+import { IAuditLogQuery } from "./admin.interface";
+
 
 const generateTemporaryPassword = (): string => {
 	const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -191,7 +191,94 @@ const updateUserStatus = async (
 	return safeUser;
 };
 
+const getAuditLogs = async (query: IAuditLogQuery) => {
+	const page = Number(query.page) > 0 ? Number(query.page) : 1;
+	const limit = Math.min(Number(query.limit) > 0 ? Number(query.limit) : 20, 100);
+	const skip = (page - 1) * limit;
+
+	const where = {
+		...(query.entityType ? { entityType: query.entityType } : {}),
+		...(query.actorId ? { actorId: query.actorId } : {}),
+	};
+
+	const [items, total] = await Promise.all([
+		prisma.auditLog.findMany({
+			where,
+			skip,
+			take: limit,
+			orderBy: { createdAt: "desc" },
+			include: { actor: { select: { id: true, email: true, role: true } } },
+		}),
+		prisma.auditLog.count({ where }),
+	]);
+
+	return {
+		data: items,
+		meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+	};
+};
+
+// DASHBOARD STATS
+
+const getDashboardStats = async () => {
+	const [
+		totalUsers,
+		totalCitizens,
+		totalStaff,
+		totalRequests,
+		requestsByStatus,
+		overdueCount,
+		totalRevenue,
+		pendingPayments,
+		avgRating,
+	] = await Promise.all([
+		prisma.user.count({ where: { deletedAt: null } }),
+		prisma.user.count({ where: { role: Role.CITIZEN, deletedAt: null } }),
+		prisma.user.count({ where: { role: Role.STAFF, deletedAt: null } }),
+		prisma.serviceRequest.count({ where: { deletedAt: null } }),
+		prisma.serviceRequest.groupBy({
+			by: ["status"],
+			_count: { _all: true },
+			where: { deletedAt: null },
+		}),
+		prisma.serviceRequest.count({
+			where: { isOverdue: true, deletedAt: null },
+		}),
+		prisma.payment.aggregate({
+			_sum: { amount: true },
+			where: { status: "COMPLETED" },
+		}),
+		prisma.payment.count({ where: { status: "PENDING" } }),
+		prisma.feedback.aggregate({ _avg: { rating: true } }),
+	]);
+
+	return {
+		users: { total: totalUsers, citizens: totalCitizens, staff: totalStaff },
+		requests: {
+			total: totalRequests,
+			overdue: overdueCount,
+			byStatus: requestsByStatus.reduce(
+				(acc, row) => {
+					acc[row.status as RequestStatus] = row._count._all;
+					return acc;
+				},
+				{} as Record<string, number>,
+			),
+		},
+		payments: {
+			totalRevenue: totalRevenue._sum.amount ?? 0,
+			pending: pendingPayments,
+		},
+		feedback: {
+			averageRating: avgRating._avg.rating ?? null,
+		},
+	};
+};
+
 export const AdminService = {
 	provisionStaff,
 	updateUserStatus,
+	getAuditLogs,
+	getDashboardStats,
 };
+
