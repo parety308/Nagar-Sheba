@@ -61,9 +61,7 @@ const createRequestRecordWithUniqueRef = async (
 	);
 };
 
-const createServiceRequest = async (
-	payload: ICreateServiceRequestServicePayload,
-) => {
+const createServiceRequest = async (payload: ICreateServiceRequestServicePayload) => {
 	const { citizenId, categoryId, files, ...requestDetails } = payload;
 
 	const category = await prisma.category.findUnique({
@@ -129,11 +127,19 @@ const createServiceRequest = async (
 		},
 	});
 
-	const paymentSession = isPaid
-		? await PaymentService.initiatePaymentSession(created.id, citizenId)
-		: null;
+	let paymentSession = null;
 
-	return { ...fullRequest, paymentSession };
+if (isPaid) {
+    try {
+        paymentSession = await PaymentService.initiatePaymentSession(created.id, citizenId);
+    } catch (error) {
+        console.error(`Failed to initiate payment session for request ${created.id}:`, error);
+        // Request still exists as PENDING_PAYMENT; citizen can retry via
+        // POST /api/v1/payments/initiate with the same requestId.
+    }
+}
+
+return { ...fullRequest, paymentSession };
 };
 
 const ALLOWED_SORT_FIELDS = [
@@ -316,8 +322,6 @@ const CANCELLABLE_STATUSES: RequestStatus[] = [
 	RequestStatus.ASSIGNED,
 ];
 
-
-
 const cancelServiceRequest = async (id: string, citizenId: string) => {
 	const request = await prisma.serviceRequest.findUnique({ where: { id } });
 
@@ -325,10 +329,16 @@ const cancelServiceRequest = async (id: string, citizenId: string) => {
 		throw new AppError(httpStatus.NOT_FOUND, "Service request not found");
 	}
 	if (request.citizenId !== citizenId) {
-		throw new AppError(httpStatus.FORBIDDEN, "You do not have permission to cancel this request");
+		throw new AppError(
+			httpStatus.FORBIDDEN,
+			"You do not have permission to cancel this request",
+		);
 	}
 	if (!CANCELLABLE_STATUSES.includes(request.status)) {
-		throw new AppError(httpStatus.CONFLICT, `A request in ${request.status} status can no longer be cancelled`);
+		throw new AppError(
+			httpStatus.CONFLICT,
+			`A request in ${request.status} status can no longer be cancelled`,
+		);
 	}
 
 	const [, updated] = await prisma.$transaction([
@@ -347,15 +357,24 @@ const cancelServiceRequest = async (id: string, citizenId: string) => {
 		}),
 	]);
 
-	// Refund if a completed payment exists for this request
-	await PaymentService.refundPaymentForRequest(id);
+	// Cancellation is already committed above — a refund-gateway failure must
+	// NOT be surfaced as a failed cancellation to the citizen.
+	try {
+		await PaymentService.refundPaymentForRequest(id);
+	} catch (error) {
+		console.error(`Refund failed for cancelled request ${id}:`, error);
+		// TODO: write an AuditLog entry / notify Admin so the refund can be
+		// retried or handled manually — there's currently no retry path.
+	}
 
 	return updated;
 };
 
 const REOPEN_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 
-const STAFF_ALLOWED_TRANSITIONS: Partial<Record<RequestStatus, RequestStatus[]>> = {
+const STAFF_ALLOWED_TRANSITIONS: Partial<
+	Record<RequestStatus, RequestStatus[]>
+> = {
 	[RequestStatus.ASSIGNED]: [RequestStatus.IN_PROGRESS],
 	[RequestStatus.IN_PROGRESS]: [RequestStatus.RESOLVED],
 };

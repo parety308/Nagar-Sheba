@@ -7,18 +7,21 @@ const grantToken = async (): Promise<string> => {
 		return cachedToken.token;
 	}
 
-	const res = await fetch(`${config.bkash.base_url}/tokenized/checkout/token/grant`, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			username: config.bkash.username,
-			password: config.bkash.password,
+	const res = await fetch(
+		`${config.bkash.base_url}/tokenized/checkout/token/grant`,
+		{
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				username: config.bkash.username,
+				password: config.bkash.password,
+			},
+			body: JSON.stringify({
+				app_key: config.bkash.app_key,
+				app_secret: config.bkash.app_secret,
+			}),
 		},
-		body: JSON.stringify({
-			app_key: config.bkash.app_key,
-			app_secret: config.bkash.app_secret,
-		}),
-	});
+	);
 
 	const data = await res.json();
 
@@ -64,28 +67,34 @@ export const bkashClient = {
 		invoiceNumber: string;
 		callbackURL: string;
 	}): Promise<IBkashCreateResponse> => {
-		const res = await fetch(`${config.bkash.base_url}/tokenized/checkout/create`, {
-			method: "POST",
-			headers: await authHeaders(),
-			body: JSON.stringify({
-				mode: "0011",
-				payerReference: payload.invoiceNumber,
-				callbackURL: payload.callbackURL,
-				amount: payload.amount.toFixed(2),
-				currency: "BDT",
-				intent: "sale",
-				merchantInvoiceNumber: payload.invoiceNumber,
-			}),
-		});
+		const res = await fetch(
+			`${config.bkash.base_url}/tokenized/checkout/create`,
+			{
+				method: "POST",
+				headers: await authHeaders(),
+				body: JSON.stringify({
+					mode: "0011",
+					payerReference: payload.invoiceNumber,
+					callbackURL: payload.callbackURL,
+					amount: payload.amount.toFixed(2),
+					currency: "BDT",
+					intent: "sale",
+					merchantInvoiceNumber: payload.invoiceNumber,
+				}),
+			},
+		);
 		return res.json();
 	},
 
 	executePayment: async (paymentID: string): Promise<IBkashExecuteResponse> => {
-		const res = await fetch(`${config.bkash.base_url}/tokenized/checkout/execute`, {
-			method: "POST",
-			headers: await authHeaders(),
-			body: JSON.stringify({ paymentID }),
-		});
+		const res = await fetch(
+			`${config.bkash.base_url}/tokenized/checkout/execute`,
+			{
+				method: "POST",
+				headers: await authHeaders(),
+				body: JSON.stringify({ paymentID }),
+			},
+		);
 		return res.json();
 	},
 
@@ -108,17 +117,20 @@ export const bkashClient = {
 		reason: string;
 		sku?: string;
 	}) => {
-		const res = await fetch(`${config.bkash.base_url}/tokenized/checkout/payment/refund`, {
-			method: "POST",
-			headers: await authHeaders(),
-			body: JSON.stringify({
-				paymentID: payload.paymentID,
-				amount: payload.amount.toFixed(2),
-				trxID: payload.trxID,
-				sku: payload.sku ?? "service-fee",
-				reason: payload.reason,
-			}),
-		});
+		const res = await fetch(
+			`${config.bkash.base_url}/tokenized/checkout/payment/refund`,
+			{
+				method: "POST",
+				headers: await authHeaders(),
+				body: JSON.stringify({
+					paymentID: payload.paymentID,
+					amount: payload.amount.toFixed(2),
+					trxID: payload.trxID,
+					sku: payload.sku ?? "service-fee",
+					reason: payload.reason,
+				}),
+			},
+		);
 		return res.json();
 	},
 };

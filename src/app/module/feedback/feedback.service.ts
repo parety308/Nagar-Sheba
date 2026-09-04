@@ -75,7 +75,10 @@ const getSingleFeedback = async (requestId: string, actor: IRequestUser) => {
 		const staffProfile = await prisma.staffProfile.findUnique({
 			where: { userId: actor.userId },
 		});
-		if (!staffProfile || staffProfile.departmentId !== feedback.request.departmentId) {
+		if (
+			!staffProfile ||
+			staffProfile.departmentId !== feedback.request.departmentId
+		) {
 			throw new AppError(
 				httpStatus.FORBIDDEN,
 				"You do not have permission to view this feedback",
@@ -89,7 +92,10 @@ const getSingleFeedback = async (requestId: string, actor: IRequestUser) => {
 // Admin/Staff-facing list — supports pagination, filter by rating/department
 const getAllFeedbacks = async (query: IFeedbackQuery, actor: IRequestUser) => {
 	const page = Number(query.page) > 0 ? Number(query.page) : 1;
-	const limit = Math.min(Number(query.limit) > 0 ? Number(query.limit) : 10, 100);
+	const limit = Math.min(
+		Number(query.limit) > 0 ? Number(query.limit) : 10,
+		100,
+	);
 	const skip = (page - 1) * limit;
 
 	const where: Prisma.FeedbackWhereInput = {
@@ -117,7 +123,14 @@ const getAllFeedbacks = async (query: IFeedbackQuery, actor: IRequestUser) => {
 			take: limit,
 			orderBy: { createdAt: "desc" },
 			include: {
-				request: { select: { id: true, trackingRef: true, title: true, departmentId: true } },
+				request: {
+					select: {
+						id: true,
+						trackingRef: true,
+						title: true,
+						departmentId: true,
+					},
+				},
 			},
 		}),
 		prisma.feedback.count({ where }),

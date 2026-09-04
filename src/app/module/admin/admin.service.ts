@@ -6,6 +6,7 @@ import path from "path";
 import {
 	AccountStatus,
 	AuthProvider,
+	RequestStatus,
 	Role,
 } from "../../../generated/prisma/enums";
 import config from "../../config";
@@ -14,13 +15,10 @@ import { transport } from "../../lib/nodemailer";
 import { prisma } from "../../lib/prisma";
 import { IRequestUser } from "../auth/auth.interface";
 import {
+	IAuditLogQuery,
 	IProvisionStaffPayload,
 	IUpdateUserStatusPayload,
 } from "./admin.interface";
-
-import { RequestStatus } from "../../../generated/prisma/enums";
-import { IAuditLogQuery } from "./admin.interface";
-
 
 const generateTemporaryPassword = (): string => {
 	const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -193,7 +191,10 @@ const updateUserStatus = async (
 
 const getAuditLogs = async (query: IAuditLogQuery) => {
 	const page = Number(query.page) > 0 ? Number(query.page) : 1;
-	const limit = Math.min(Number(query.limit) > 0 ? Number(query.limit) : 20, 100);
+	const limit = Math.min(
+		Number(query.limit) > 0 ? Number(query.limit) : 20,
+		100,
+	);
 	const skip = (page - 1) * limit;
 
 	const where = {
@@ -281,4 +282,3 @@ export const AdminService = {
 	getAuditLogs,
 	getDashboardStats,
 };
-

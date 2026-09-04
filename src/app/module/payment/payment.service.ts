@@ -31,9 +31,7 @@ type TRequestForPayment = {
 const buildTranId = (requestId: string) =>
 	`NS-${requestId.slice(0, 8)}-${Date.now()}`;
 
-// ---------------------------------------------------------------------------
 // SSLCOMMERZ
-// ---------------------------------------------------------------------------
 
 const createSSLCommerzSession = async (
 	request: TRequestForPayment,
@@ -72,17 +70,15 @@ const createSSLCommerzSession = async (
 		);
 	}
 
-	return { providerRef: tranId, checkoutUrl: apiResponse.GatewayPageURL as string };
+	return {
+		providerRef: tranId,
+		checkoutUrl: apiResponse.GatewayPageURL as string,
+	};
 };
 
-// ---------------------------------------------------------------------------
 // BKASH
-// ---------------------------------------------------------------------------
 
-const createBkashSession = async (
-	request: TRequestForPayment,
-	amount: Prisma.Decimal,
-) => {
+const createBkashSession = async (request: TRequestForPayment,amount: Prisma.Decimal) => {
 	const invoiceNumber = buildTranId(request.id);
 
 	const response = await bkashClient.createPayment({
@@ -91,7 +87,7 @@ const createBkashSession = async (
 		callbackURL: `${config.backend_url}/api/v1/payments/bkash/callback`,
 	});
 
-	if (response.statusCode !== "0000" || !response.bkashURL || !response.paymentID) {
+	if (response.statusCode !== "0000" ||!response.bkashURL ||!response.paymentID) {
 		throw new AppError(
 			httpStatus.BAD_GATEWAY,
 			`Failed to initiate bKash session: ${response.statusMessage ?? "unknown error"}`,
@@ -101,9 +97,7 @@ const createBkashSession = async (
 	return { providerRef: response.paymentID, checkoutUrl: response.bkashURL };
 };
 
-// ---------------------------------------------------------------------------
 // INITIATE / RECREATE PAYMENT SESSION — provider-agnostic
-// ---------------------------------------------------------------------------
 
 const initiatePaymentSession = async (
 	requestId: string,
@@ -153,10 +147,14 @@ const initiatePaymentSession = async (
 	const session =
 		provider === "BKASH"
 			? await createBkashSession(request, request.feeCharged)
-			: await createSSLCommerzSession(request, request.feeCharged, buildTranId(request.id));
+			: await createSSLCommerzSession(
+					request,
+					request.feeCharged,
+					buildTranId(request.id),
+				);
 
 	const providerEnum =
-		provider === "BKASH" ? PaymentProvider.BKASH: PaymentProvider.SSLCOMMERZ;
+		provider === "BKASH" ? PaymentProvider.BKASH : PaymentProvider.SSLCOMMERZ;
 
 	if (request.payment) {
 		const updated = await prisma.payment.update({
@@ -184,9 +182,7 @@ const initiatePaymentSession = async (
 	return { paymentId: created.id, checkoutUrl: session.checkoutUrl };
 };
 
-// ---------------------------------------------------------------------------
 // SHARED COMPLETION LOGIC — one place that flips Payment + ServiceRequest
-// ---------------------------------------------------------------------------
 
 const completePayment = async (paymentId: string) => {
 	const payment = await prisma.payment.findUnique({
@@ -230,9 +226,7 @@ const failPaymentIfPending = async (paymentId: string) => {
 	}
 };
 
-// ---------------------------------------------------------------------------
 // SSLCOMMERZ VERIFICATION (IPN + redirect handlers both call this)
-// ---------------------------------------------------------------------------
 
 const verifySSLCommerzAndComplete = async (tranId: string, valId: string) => {
 	const payment = await prisma.payment.findUnique({
@@ -240,7 +234,9 @@ const verifySSLCommerzAndComplete = async (tranId: string, valId: string) => {
 	});
 
 	if (!payment) {
-		console.error(`SSLCommerz callback: no Payment found for tran_id ${tranId}`);
+		console.error(
+			`SSLCommerz callback: no Payment found for tran_id ${tranId}`,
+		);
 		return;
 	}
 
@@ -256,7 +252,10 @@ const verifySSLCommerzAndComplete = async (tranId: string, valId: string) => {
 		validation.currency === "BDT";
 
 	if (!isValid || !amountMatches) {
-		console.error(`SSLCommerz validation failed for payment ${payment.id}`, validation);
+		console.error(
+			`SSLCommerz validation failed for payment ${payment.id}`,
+			validation,
+		);
 		await failPaymentIfPending(payment.id);
 		return;
 	}
@@ -268,11 +267,16 @@ const handleSSLCommerzIPN = async (body: Record<string, string>) => {
 	const { tran_id, val_id, status } = body;
 
 	if (!tran_id) {
-		throw new AppError(httpStatus.BAD_REQUEST, "Missing tran_id in IPN payload");
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			"Missing tran_id in IPN payload",
+		);
 	}
 
 	if (status !== "VALID" && status !== "VALIDATED") {
-		const payment = await prisma.payment.findUnique({ where: { providerRef: tran_id } });
+		const payment = await prisma.payment.findUnique({
+			where: { providerRef: tran_id },
+		});
 		if (payment) await failPaymentIfPending(payment.id);
 		return { received: true };
 	}
@@ -294,7 +298,9 @@ const handleSSLCommerzSuccessRedirect = async (body: Record<string, string>) => 
 const handleSSLCommerzFailRedirect = async (body: Record<string, string>) => {
 	const { tran_id } = body;
 	if (tran_id) {
-		const payment = await prisma.payment.findUnique({ where: { providerRef: tran_id } });
+		const payment = await prisma.payment.findUnique({
+			where: { providerRef: tran_id },
+		});
 		if (payment) await failPaymentIfPending(payment.id);
 	}
 	return `${config.frontend_url}/payments/fail?tran_id=${tran_id ?? ""}`;
@@ -303,15 +309,15 @@ const handleSSLCommerzFailRedirect = async (body: Record<string, string>) => {
 const handleSSLCommerzCancelRedirect = async (body: Record<string, string>) => {
 	const { tran_id } = body;
 	if (tran_id) {
-		const payment = await prisma.payment.findUnique({ where: { providerRef: tran_id } });
+		const payment = await prisma.payment.findUnique({
+			where: { providerRef: tran_id },
+		});
 		if (payment) await failPaymentIfPending(payment.id);
 	}
 	return `${config.frontend_url}/payments/cancel?tran_id=${tran_id ?? ""}`;
 };
 
-// ---------------------------------------------------------------------------
 // BKASH VERIFICATION — single callback URL, status differentiated by query
-// ---------------------------------------------------------------------------
 
 const handleBkashCallback = async (query: {
 	paymentID?: string;
@@ -323,10 +329,14 @@ const handleBkashCallback = async (query: {
 		return `${config.frontend_url}/payments/fail?reason=missing_payment_id`;
 	}
 
-	const payment = await prisma.payment.findUnique({ where: { providerRef: paymentID } });
+	const payment = await prisma.payment.findUnique({
+		where: { providerRef: paymentID },
+	});
 
 	if (!payment) {
-		console.error(`bKash callback: no Payment found for paymentID ${paymentID}`);
+		console.error(
+			`bKash callback: no Payment found for paymentID ${paymentID}`,
+		);
 		return `${config.frontend_url}/payments/fail?paymentID=${paymentID}`;
 	}
 
@@ -345,7 +355,10 @@ const handleBkashCallback = async (query: {
 	const amountMatches = Number(executeResult.amount) === Number(payment.amount);
 
 	if (!isCompleted || !amountMatches) {
-		console.error(`bKash execute failed/mismatched for payment ${payment.id}`, executeResult);
+		console.error(
+			`bKash execute failed/mismatched for payment ${payment.id}`,
+			executeResult,
+		);
 		await failPaymentIfPending(payment.id);
 		return `${config.frontend_url}/payments/fail?paymentID=${paymentID}`;
 	}
@@ -354,9 +367,7 @@ const handleBkashCallback = async (query: {
 	return `${config.frontend_url}/payments/success?paymentID=${paymentID}`;
 };
 
-// ---------------------------------------------------------------------------
 // REFUND — provider-agnostic dispatcher
-// ---------------------------------------------------------------------------
 
 const refundSSLCommerz = async (payment: {
 	id: string;
@@ -385,7 +396,10 @@ const refundSSLCommerz = async (payment: {
 		refe_id: payment.id,
 	});
 
-	if (refundResponse.status !== "success" && refundResponse.status !== "processing") {
+	if (
+		refundResponse.status !== "success" &&
+		refundResponse.status !== "processing"
+	) {
 		throw new AppError(
 			httpStatus.BAD_GATEWAY,
 			`SSLCommerz refund failed: ${refundResponse.errorReason ?? "unknown error"}`,
@@ -446,9 +460,7 @@ const refundPaymentForRequest = async (requestId: string) => {
 	});
 };
 
-// ---------------------------------------------------------------------------
 // READ (unchanged)
-// ---------------------------------------------------------------------------
 
 const getSinglePayment = async (paymentId: string, actor: IRequestUser) => {
 	const payment = await prisma.payment.findUnique({
@@ -471,7 +483,10 @@ const getSinglePayment = async (paymentId: string, actor: IRequestUser) => {
 		);
 	}
 
-	if (actor.role === Role.CITIZEN && payment.request.citizenId !== actor.userId) {
+	if (
+		actor.role === Role.CITIZEN &&
+		payment.request.citizenId !== actor.userId
+	) {
 		throw new AppError(
 			httpStatus.FORBIDDEN,
 			"You do not have permission to view this payment",
@@ -492,7 +507,10 @@ const getAllPayments = async (query: IPaymentQuery, actor: IRequestUser) => {
 	}
 
 	const page = Number(query.page) > 0 ? Number(query.page) : 1;
-	const limit = Math.min(Number(query.limit) > 0 ? Number(query.limit) : 10, 100);
+	const limit = Math.min(
+		Number(query.limit) > 0 ? Number(query.limit) : 10,
+		100,
+	);
 	const skip = (page - 1) * limit;
 
 	const sortBy = ALLOWED_PAYMENT_SORT_FIELDS.includes(query.sortBy as string)
@@ -501,7 +519,9 @@ const getAllPayments = async (query: IPaymentQuery, actor: IRequestUser) => {
 	const sortOrder = query.sortOrder === "asc" ? "asc" : "desc";
 
 	const where: Prisma.PaymentWhereInput = {
-		...(actor.role === Role.CITIZEN ? { request: { citizenId: actor.userId } } : {}),
+		...(actor.role === Role.CITIZEN
+			? { request: { citizenId: actor.userId } }
+			: {}),
 		...(query.status ? { status: query.status as PaymentStatus } : {}),
 		...(query.provider ? { provider: query.provider as PaymentProvider } : {}),
 	};

@@ -22,7 +22,10 @@ router.patch(
 );
 
 router.get("/audit-logs", auth(Role.ADMIN), AdminController.getAuditLogs);
-router.get("/dashboard-stats", auth(Role.ADMIN), AdminController.getDashboardStats);
-
+router.get(
+	"/dashboard-stats",
+	auth(Role.ADMIN),
+	AdminController.getDashboardStats,
+);
 
 export const AdminRoutes = router;

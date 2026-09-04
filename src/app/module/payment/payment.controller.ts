@@ -7,11 +7,7 @@ import { PaymentService } from "./payment.service";
 
 const initiatePayment = catchAsync(async (req: Request, res: Response) => {
 	const actor = req.user as IRequestUser;
-	const result = await PaymentService.initiatePaymentSession(
-		req.body.requestId,
-		actor.userId,
-		req.body.provider,
-	);
+	const result = await PaymentService.initiatePaymentSession(req.body.requestId,actor.userId,req.body.provider);
 
 	sendResponse(res, {
 		statusCode: httpStatus.CREATED,
@@ -28,20 +24,30 @@ const handleSSLCommerzIPN = catchAsync(async (req: Request, res: Response) => {
 	res.status(httpStatus.OK).json(result);
 });
 
-const handleSSLCommerzSuccess = catchAsync(async (req: Request, res: Response) => {
-	const redirectUrl = await PaymentService.handleSSLCommerzSuccessRedirect(req.body);
-	res.redirect(redirectUrl);
-});
+const handleSSLCommerzSuccess = catchAsync(
+	async (req: Request, res: Response) => {
+		const redirectUrl = await PaymentService.handleSSLCommerzSuccessRedirect(
+			req.body,
+		);
+		res.redirect(redirectUrl);
+	},
+);
 
 const handleSSLCommerzFail = catchAsync(async (req: Request, res: Response) => {
-	const redirectUrl = await PaymentService.handleSSLCommerzFailRedirect(req.body);
+	const redirectUrl = await PaymentService.handleSSLCommerzFailRedirect(
+		req.body,
+	);
 	res.redirect(redirectUrl);
 });
 
-const handleSSLCommerzCancel = catchAsync(async (req: Request, res: Response) => {
-	const redirectUrl = await PaymentService.handleSSLCommerzCancelRedirect(req.body);
-	res.redirect(redirectUrl);
-});
+const handleSSLCommerzCancel = catchAsync(
+	async (req: Request, res: Response) => {
+		const redirectUrl = await PaymentService.handleSSLCommerzCancelRedirect(
+			req.body,
+		);
+		res.redirect(redirectUrl);
+	},
+);
 
 // ---- bKash ----
 // bKash calls back with GET ?paymentID=...&status=success|failure|cancel
@@ -58,7 +64,10 @@ const handleBkashCallback = catchAsync(async (req: Request, res: Response) => {
 
 const getSinglePayment = catchAsync(async (req: Request, res: Response) => {
 	const actor = req.user as IRequestUser;
-	const result = await PaymentService.getSinglePayment(req.params.id as string, actor);
+	const result = await PaymentService.getSinglePayment(
+		req.params.id as string,
+		actor,
+	);
 
 	sendResponse(res, {
 		statusCode: httpStatus.OK,

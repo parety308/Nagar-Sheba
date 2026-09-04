@@ -7,15 +7,12 @@ import { paymentValidationSchemas } from "./payment.validation";
 
 const router = Router();
 
+router.post("/sslcommerz/ipn", PaymentController.handleSSLCommerzIPN);
+router.post("/sslcommerz/success", PaymentController.handleSSLCommerzSuccess);
+router.post("/sslcommerz/fail", PaymentController.handleSSLCommerzFail);
+router.post("/sslcommerz/cancel", PaymentController.handleSSLCommerzCancel);
 
-router.post("/ipn", PaymentController.handleSSLCommerzIPN);
-router.post("/success", PaymentController.handleSSLCommerzSuccess);
-router.post("/fail", PaymentController.handleSSLCommerzFail);
-router.post("/cancel", PaymentController.handleSSLCommerzCancel);
-
-router.post(
-	"/initiate",
-	auth(Role.CITIZEN),
+router.post("/initiate",auth(Role.CITIZEN),
 	validateRequestBody(paymentValidationSchemas.InitiatePaymentZodSchema),
 	PaymentController.initiatePayment,
 );

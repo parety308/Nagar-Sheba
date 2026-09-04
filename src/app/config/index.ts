@@ -42,10 +42,10 @@ export default {
 		is_live: process.env.SSLCOMMERZ_IS_LIVE === "true",
 	},
 	bkash: {
-	base_url: process.env.BKASH_BASE_URL!,
-	username: process.env.BKASH_USERNAME!,
-	password: process.env.BKASH_PASSWORD!,
-	app_key: process.env.BKASH_APP_KEY!,
-	app_secret: process.env.BKASH_APP_SECRET!,
-},
+		base_url: process.env.BKASH_BASE_URL!,
+		username: process.env.BKASH_USERNAME!,
+		password: process.env.BKASH_PASSWORD!,
+		app_key: process.env.BKASH_APP_KEY!,
+		app_secret: process.env.BKASH_APP_SECRET!,
+	},
 };
