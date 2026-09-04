@@ -12,22 +12,8 @@ import { bkashClient } from "../../lib/bkash";
 import { prisma } from "../../lib/prisma";
 import { createSSLCommerzInstance } from "../../lib/sslcommerz";
 import { IRequestUser } from "../auth/auth.interface";
-import { IPaymentQuery } from "./payment.interface";
 import { NotificationService } from "../notification/notification.service";
-
-type TRequestForPayment = {
-	id: string;
-	trackingRef: string;
-	title: string;
-	citizen: {
-		email: string;
-		citizenProfile: {
-			fullName: string;
-			phone: string | null;
-			address: string | null;
-		} | null;
-	};
-};
+import { IPaymentQuery, TRequestForPayment } from "./payment.interface";
 
 const buildTranId = (requestId: string) =>
 	`NS-${requestId.slice(0, 8)}-${Date.now()}`;
@@ -79,7 +65,10 @@ const createSSLCommerzSession = async (
 
 // BKASH
 
-const createBkashSession = async (request: TRequestForPayment,amount: Prisma.Decimal) => {
+const createBkashSession = async (
+	request: TRequestForPayment,
+	amount: Prisma.Decimal,
+) => {
 	const invoiceNumber = buildTranId(request.id);
 
 	const response = await bkashClient.createPayment({
@@ -88,7 +77,11 @@ const createBkashSession = async (request: TRequestForPayment,amount: Prisma.Dec
 		callbackURL: `${config.backend_url}/api/v1/payments/bkash/callback`,
 	});
 
-	if (response.statusCode !== "0000" ||!response.bkashURL ||!response.paymentID) {
+	if (
+		response.statusCode !== "0000" ||
+		!response.bkashURL ||
+		!response.paymentID
+	) {
 		throw new AppError(
 			httpStatus.BAD_GATEWAY,
 			`Failed to initiate bKash session: ${response.statusMessage ?? "unknown error"}`,
@@ -216,10 +209,10 @@ const completePayment = async (paymentId: string) => {
 		}),
 	]);
 	NotificationService.notifyUser({
-	userId: payment.request.citizenId,
-	type: "PAYMENT_COMPLETED",
-	message: `Your payment of ${payment.amount} BDT was completed successfully.`,
-});
+		userId: payment.request.citizenId,
+		type: "PAYMENT_COMPLETED",
+		message: `Your payment of ${payment.amount} BDT was completed successfully.`,
+	});
 };
 
 const failPaymentIfPending = async (paymentId: string) => {
@@ -295,7 +288,9 @@ const handleSSLCommerzIPN = async (body: Record<string, string>) => {
 	return { received: true };
 };
 
-const handleSSLCommerzSuccessRedirect = async (body: Record<string, string>) => {
+const handleSSLCommerzSuccessRedirect = async (
+	body: Record<string, string>,
+) => {
 	const { tran_id, val_id } = body;
 	if (tran_id && val_id) await verifySSLCommerzAndComplete(tran_id, val_id);
 	return `${config.frontend_url}/payments/success?tran_id=${tran_id ?? ""}`;
@@ -442,30 +437,155 @@ const refundBkash = async (payment: {
 	}
 };
 
-const refundPaymentForRequest = async (requestId: string) => {
+// REFUND — provider-agnostic dispatcher (unchanged: refundSSLCommerz, refundBkash stay as-is)
+
+// SHARED CORE — refunds by Payment row directly. Used by both the automatic
+// cancel-flow path (refundPaymentForRequest) and the manual Admin retry
+// endpoint (manualRefundPayment).
+
+const executeRefund = async (
+	payment: {
+		id: string;
+		providerRef: string;
+		amount: Prisma.Decimal;
+		provider: PaymentProvider;
+		status: PaymentStatus;
+	},
+	actorId: string,
+) => {
+	if (payment.status !== PaymentStatus.COMPLETED) {
+		throw new AppError(
+			httpStatus.CONFLICT,
+			`Only a COMPLETED payment can be refunded. Current status: ${payment.status}`,
+		);
+	}
+
+	try {
+		if (payment.provider === PaymentProvider.BKASH) {
+			await refundBkash(payment);
+		} else if (payment.provider === PaymentProvider.SSLCOMMERZ) {
+			await refundSSLCommerz(payment);
+		} else {
+			throw new AppError(
+				httpStatus.BAD_REQUEST,
+				`Refunds are not supported for provider ${payment.provider}`,
+			);
+		}
+	} catch (error) {
+		await prisma.auditLog.create({
+			data: {
+				actorId,
+				action: "PAYMENT_REFUND_FAILED",
+				entityType: "Payment",
+				entityId: payment.id,
+				previousValue: { status: payment.status },
+				newValue: {
+					attemptedStatus: PaymentStatus.REFUNDED,
+					error: error instanceof Error ? error.message : "Unknown error",
+				},
+			},
+		});
+		throw error;
+	}
+
+	const [updated] = await prisma.$transaction([
+		prisma.payment.update({
+			where: { id: payment.id },
+			data: { status: PaymentStatus.REFUNDED, refundedAt: new Date() },
+		}),
+		prisma.auditLog.create({
+			data: {
+				actorId,
+				action: "PAYMENT_REFUNDED",
+				entityType: "Payment",
+				entityId: payment.id,
+				previousValue: { status: payment.status },
+				newValue: { status: PaymentStatus.REFUNDED },
+			},
+		}),
+	]);
+
+	return updated;
+};
+
+// AUTOMATIC PATH — called from request.service.ts on citizen cancellation.
+// Silently no-ops if there's no COMPLETED payment (nothing to refund).
+
+const refundPaymentForRequest = async (requestId: string, actorId: string) => {
 	const payment = await prisma.payment.findUnique({ where: { requestId } });
 
 	if (!payment || payment.status !== PaymentStatus.COMPLETED) {
 		return null;
 	}
 
-	if (payment.provider === PaymentProvider.BKASH) {
-		await refundBkash(payment);
-	} else if (payment.provider === PaymentProvider.SSLCOMMERZ) {
-		await refundSSLCommerz(payment);
-	} else {
+	return executeRefund(payment, actorId);
+};
+
+// MANUAL ADMIN PATH — explicit retry/trigger for a specific payment.
+// Distinct from the automatic path in that it throws (rather than
+// swallowing) so the Admin sees exactly why a refund didn't go through,
+// and it records the Admin's reason on the audit trail.
+
+const manualRefundPayment = async (
+	paymentId: string,
+	actor: IRequestUser,
+	payload: { reason?: string },
+) => {
+	const payment = await prisma.payment.findUnique({
+		where: { id: paymentId },
+		include: {
+			request: { select: { id: true, citizenId: true, trackingRef: true } },
+		},
+	});
+
+	if (!payment) {
+		throw new AppError(httpStatus.NOT_FOUND, "Payment not found");
+	}
+
+	if (
+		payment.status === PaymentStatus.PENDING ||
+		payment.status === PaymentStatus.FAILED
+	) {
 		throw new AppError(
-			httpStatus.BAD_REQUEST,
-			`Refunds are not supported for provider ${payment.provider}`,
+			httpStatus.CONFLICT,
+			`This payment was never completed (status: ${payment.status}) — there is nothing to refund`,
 		);
 	}
 
-	return prisma.payment.update({
-		where: { id: payment.id },
-		data: { status: PaymentStatus.REFUNDED, refundedAt: new Date() },
-	});
-};
+	if (payment.status === PaymentStatus.CANCELLED) {
+		throw new AppError(
+			httpStatus.CONFLICT,
+			"This payment was cancelled and cannot be refunded",
+		);
+	}
 
+	if (payment.status === PaymentStatus.REFUNDED) {
+		throw new AppError(
+			httpStatus.CONFLICT,
+			"This payment has already been refunded",
+		);
+	}
+
+	const updated = await executeRefund(payment, actor.userId);
+
+	// Record the Admin's stated reason as a follow-up audit entry, kept
+	// separate from PAYMENT_REFUNDED so the automated and manual paths
+	// share one clean success-event shape.
+	if (payload.reason) {
+		await prisma.auditLog.create({
+			data: {
+				actorId: actor.userId,
+				action: "PAYMENT_MANUAL_REFUND_REASON",
+				entityType: "Payment",
+				entityId: payment.id,
+				previousValue: undefined,
+				newValue: { reason: payload.reason },
+			},
+		});
+	}
+
+	return updated;
+};
 // READ (unchanged)
 
 const getSinglePayment = async (paymentId: string, actor: IRequestUser) => {
@@ -559,6 +679,7 @@ export const PaymentService = {
 	handleSSLCommerzCancelRedirect,
 	handleBkashCallback,
 	refundPaymentForRequest,
+	manualRefundPayment,
 	getSinglePayment,
 	getAllPayments,
 };

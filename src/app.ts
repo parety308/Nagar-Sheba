@@ -13,9 +13,9 @@ import { AuthRoutes } from "./app/module/auth/auth.route";
 import { CategoryRoutes } from "./app/module/category/category.route";
 import { DepartmentRoutes } from "./app/module/department/department.route";
 import { FeedbackRoutes } from "./app/module/feedback/feedback.route";
+import { NotificationRoutes } from "./app/module/notification/notification.route";
 import { PaymentRoutes } from "./app/module/payment/payment.route";
 import { RequestRoutes } from "./app/module/request/request.route";
-import { NotificationRoutes } from "./app/module/notification/notification.route";
 
 const app: Application = express();
 

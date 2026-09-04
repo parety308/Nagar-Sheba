@@ -1,6 +1,6 @@
-import { prisma } from "../../lib/prisma";
-import { AppError } from "../../errors/AppError";
 import httpStatus from "http-status";
+import { AppError } from "../../errors/AppError";
+import { prisma } from "../../lib/prisma";
 import {
 	ICreateNotificationPayload,
 	INotificationQuery,
@@ -19,7 +19,10 @@ const notifyUser = async (payload: ICreateNotificationPayload) => {
 			},
 		});
 	} catch (error) {
-		console.error("[NotificationService] Failed to create notification:", error);
+		console.error(
+			"[NotificationService] Failed to create notification:",
+			error,
+		);
 	}
 };
 
@@ -34,13 +37,22 @@ const notifyUsers = async (
 			data: userIds.map((userId) => ({ userId, type, message })),
 		});
 	} catch (error) {
-		console.error("[NotificationService] Failed to create bulk notifications:", error);
+		console.error(
+			"[NotificationService] Failed to create bulk notifications:",
+			error,
+		);
 	}
 };
 
-const getMyNotifications = async (userId: string, query: INotificationQuery) => {
+const getMyNotifications = async (
+	userId: string,
+	query: INotificationQuery,
+) => {
 	const page = Number(query.page) > 0 ? Number(query.page) : 1;
-	const limit = Math.min(Number(query.limit) > 0 ? Number(query.limit) : 10, 100);
+	const limit = Math.min(
+		Number(query.limit) > 0 ? Number(query.limit) : 10,
+		100,
+	);
 	const skip = (page - 1) * limit;
 
 	const where = {

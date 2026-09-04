@@ -50,7 +50,10 @@ const generateTemporaryPassword = (): string => {
 
 // PROVISION STAFF / ADMIN
 
-const provisionStaff = async (payload: IProvisionStaffPayload) => {
+const provisionStaff = async (
+	payload: IProvisionStaffPayload,
+	actor: IRequestUser,
+) => {
 	const organizationEmail = payload.organizationEmail.trim().toLowerCase();
 	const personalEmail = payload.personalEmail.trim().toLowerCase();
 
@@ -81,31 +84,50 @@ const provisionStaff = async (payload: IProvisionStaffPayload) => {
 		config.bcrypt_salt_rounds,
 	);
 
-	const createdUser = await prisma.user.create({
-		data: {
-			email: organizationEmail,
-			passwordHash,
-			role: payload.role as Role,
-			status: AccountStatus.ACTIVE,
-			authProvider: AuthProvider.CREDENTIAL,
-			isEmailVerified: true, // provisioned accounts skip OTP — §5.2
-			mustChangePassword: true, // forced on first login — §5.6
-			...(payload.role === "STAFF"
-				? {
-						staffProfile: {
-							create: {
-								departmentId: payload.departmentId as string,
-								fullName: payload.fullName,
-								title: payload.title,
+	const createdUser = await prisma.$transaction(async (tx) => {
+		const user = await tx.user.create({
+			data: {
+				email: organizationEmail,
+				passwordHash,
+				role: payload.role as Role,
+				status: AccountStatus.ACTIVE,
+				authProvider: AuthProvider.CREDENTIAL,
+				isEmailVerified: true, // provisioned accounts skip OTP — §5.2
+				mustChangePassword: true, // forced on first login — §5.6
+				...(payload.role === "STAFF"
+					? {
+							staffProfile: {
+								create: {
+									departmentId: payload.departmentId as string,
+									fullName: payload.fullName,
+									title: payload.title,
+								},
 							},
-						},
-					}
-				: {
-						adminProfile: {
-							create: { fullName: payload.fullName },
-						},
-					}),
-		},
+						}
+					: {
+							adminProfile: {
+								create: { fullName: payload.fullName },
+							},
+						}),
+			},
+		});
+
+		await tx.auditLog.create({
+			data: {
+				actorId: actor.userId,
+				action: "STAFF_PROVISIONED",
+				entityType: "User",
+				entityId: user.id,
+				previousValue: undefined,
+				newValue: {
+					organizationEmail,
+					role: payload.role,
+					departmentId: payload.departmentId,
+				},
+			},
+		});
+
+		return user;
 	});
 
 	// Deliver credentials to the personal email. A delivery failure here
@@ -253,8 +275,6 @@ const getAllUsers = async (query: IUserListQuery) => {
 	};
 };
 
-
-
 const updateUserRole = async (
 	targetUserId: string,
 	payload: IUpdateUserRolePayload,
@@ -283,9 +303,12 @@ const updateUserRole = async (
 		);
 	}
 
-	if (payload.role === "CITIZEN" as any) {
+	if (payload.role === ("CITIZEN" as any)) {
 		// unreachable given zod enum, kept as a defensive guard
-		throw new AppError(httpStatus.BAD_REQUEST, "Cannot demote a user to CITIZEN");
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			"Cannot demote a user to CITIZEN",
+		);
 	}
 
 	if (targetUser.role === payload.role) {
@@ -369,7 +392,6 @@ const updateUserRole = async (
 	const { passwordHash: _, ...safeUser } = updated;
 	return safeUser;
 };
-
 
 const getAuditLogs = async (query: IAuditLogQuery) => {
 	const page = Number(query.page) > 0 ? Number(query.page) : 1;
@@ -457,7 +479,6 @@ const getDashboardStats = async () => {
 		},
 	};
 };
-
 
 export const AdminService = {
 	provisionStaff,

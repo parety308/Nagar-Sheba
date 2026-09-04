@@ -6,7 +6,8 @@ import { IRequestUser } from "../auth/auth.interface";
 import { AdminService } from "./admin.service";
 
 const provisionStaff = catchAsync(async (req: Request, res: Response) => {
-	const result = await AdminService.provisionStaff(req.body);
+	const actor = req.user as IRequestUser;
+	const result = await AdminService.provisionStaff(req.body, actor);
 
 	sendResponse(res, {
 		statusCode: httpStatus.CREATED,

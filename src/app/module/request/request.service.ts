@@ -11,6 +11,7 @@ import { AppError } from "../../errors/AppError";
 import { prisma } from "../../lib/prisma";
 import { uploadBufferToCloudinary } from "../../utils/uploadToCloudinary";
 import { IRequestUser } from "../auth/auth.interface";
+import { NotificationService } from "../notification/notification.service";
 import { PaymentService } from "../payment/payment.service";
 import {
 	IAddAttachmentPayload,
@@ -20,7 +21,6 @@ import {
 	IRequestQuery,
 	IUpdateStatusPayload,
 } from "./request.interface";
-import { NotificationService } from "../notification/notification.service";
 
 const generateTrackingRef = async () => {
 	const year = new Date().getFullYear();
@@ -62,7 +62,9 @@ const createRequestRecordWithUniqueRef = async (
 	);
 };
 
-const createServiceRequest = async (payload: ICreateServiceRequestServicePayload) => {
+const createServiceRequest = async (
+	payload: ICreateServiceRequestServicePayload,
+) => {
 	const { citizenId, categoryId, files, ...requestDetails } = payload;
 
 	const category = await prisma.category.findUnique({
@@ -130,17 +132,23 @@ const createServiceRequest = async (payload: ICreateServiceRequestServicePayload
 
 	let paymentSession = null;
 
-if (isPaid) {
-    try {
-        paymentSession = await PaymentService.initiatePaymentSession(created.id, citizenId);
-    } catch (error) {
-        console.error(`Failed to initiate payment session for request ${created.id}:`, error);
-        // Request still exists as PENDING_PAYMENT; citizen can retry via
-        // POST /api/v1/payments/initiate with the same requestId.
-    }
-}
+	if (isPaid) {
+		try {
+			paymentSession = await PaymentService.initiatePaymentSession(
+				created.id,
+				citizenId,
+			);
+		} catch (error) {
+			console.error(
+				`Failed to initiate payment session for request ${created.id}:`,
+				error,
+			);
+			// Request still exists as PENDING_PAYMENT; citizen can retry via
+			// POST /api/v1/payments/initiate with the same requestId.
+		}
+	}
 
-return { ...fullRequest, paymentSession };
+	return { ...fullRequest, paymentSession };
 };
 
 const ALLOWED_SORT_FIELDS = [
@@ -361,13 +369,13 @@ const cancelServiceRequest = async (id: string, citizenId: string) => {
 	// Cancellation is already committed above — a refund-gateway failure must
 	// NOT be surfaced as a failed cancellation to the citizen.
 	try {
-		await PaymentService.refundPaymentForRequest(id);
+		await PaymentService.refundPaymentForRequest(id, citizenId);
 	} catch (error) {
 		console.error(`Refund failed for cancelled request ${id}:`, error);
-		// TODO: write an AuditLog entry / notify Admin so the refund can be
-		// retried or handled manually — there's currently no retry path.
+		// The PAYMENT_REFUND_FAILED audit log entry (written inside
+		// refundPaymentForRequest) is now the durable record an Admin can
+		// use to find and manually retry this — see gap #4.
 	}
-
 	return updated;
 };
 
@@ -503,18 +511,18 @@ const transitionRequestStatus = async (
 
 	const results = await prisma.$transaction(operations);
 	NotificationService.notifyUser({
-	userId: request.citizenId,
-	type: "REQUEST_STATUS_CHANGED",
-	message: `Your request "${request.title}" status changed to ${toStatus}.`,
-});
-
-if (toStatus === RequestStatus.ASSIGNED && request.assignedStaffId) {
-	NotificationService.notifyUser({
-		userId: request.assignedStaffId,
-		type: "REQUEST_ASSIGNED",
-		message: `You have been assigned request "${request.title}".`,
+		userId: request.citizenId,
+		type: "REQUEST_STATUS_CHANGED",
+		message: `Your request "${request.title}" status changed to ${toStatus}.`,
 	});
-}
+
+	if (toStatus === RequestStatus.ASSIGNED && request.assignedStaffId) {
+		NotificationService.notifyUser({
+			userId: request.assignedStaffId,
+			type: "REQUEST_ASSIGNED",
+			message: `You have been assigned request "${request.title}".`,
+		});
+	}
 	return results[1];
 };
 
@@ -670,12 +678,12 @@ const reassignRequest = async (
 
 	const results = await prisma.$transaction(operations);
 	if (resolvedStaffId) {
-	NotificationService.notifyUser({
-		userId: resolvedStaffId,
-		type: "REQUEST_REASSIGNED",
-		message: `You have been assigned request "${request.title}".`,
-	});
-}
+		NotificationService.notifyUser({
+			userId: resolvedStaffId,
+			type: "REQUEST_REASSIGNED",
+			message: `You have been assigned request "${request.title}".`,
+		});
+	}
 	return results[updateIndex];
 };
 

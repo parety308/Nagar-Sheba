@@ -7,7 +7,11 @@ import { PaymentService } from "./payment.service";
 
 const initiatePayment = catchAsync(async (req: Request, res: Response) => {
 	const actor = req.user as IRequestUser;
-	const result = await PaymentService.initiatePaymentSession(req.body.requestId,actor.userId,req.body.provider);
+	const result = await PaymentService.initiatePaymentSession(
+		req.body.requestId,
+		actor.userId,
+		req.body.provider,
+	);
 
 	sendResponse(res, {
 		statusCode: httpStatus.CREATED,
@@ -100,6 +104,23 @@ const getAllPayments = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
+const manualRefundPayment = catchAsync(async (req: Request, res: Response) => {
+	const actor = req.user as IRequestUser;
+
+	const result = await PaymentService.manualRefundPayment(
+		req.params.id as string,
+		actor,
+		req.body,
+	);
+
+	sendResponse(res, {
+		statusCode: httpStatus.OK,
+		success: true,
+		message: "Payment refunded successfully",
+		data: result,
+	});
+});
+
 export const PaymentController = {
 	initiatePayment,
 	handleSSLCommerzIPN,
@@ -107,6 +128,7 @@ export const PaymentController = {
 	handleSSLCommerzFail,
 	handleSSLCommerzCancel,
 	handleBkashCallback,
+	manualRefundPayment,
 	getSinglePayment,
 	getAllPayments,
 };

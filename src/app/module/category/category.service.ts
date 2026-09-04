@@ -2,6 +2,7 @@ import httpStatus from "http-status";
 import { Role } from "../../../generated/prisma/enums";
 import { AppError } from "../../errors/AppError";
 import { prisma } from "../../lib/prisma";
+import { IRequestUser } from "../auth/auth.interface";
 import {
 	ICategoryQuery,
 	ICreateCategoryPayload,
@@ -9,7 +10,10 @@ import {
 } from "./category.interface";
 
 // create category
-const createCategory = async (payload: ICreateCategoryPayload) => {
+const createCategory = async (
+	payload: ICreateCategoryPayload,
+	actor: IRequestUser,
+) => {
 	const department = await prisma.department.findUnique({
 		where: { id: payload.departmentId },
 	});
@@ -34,13 +38,32 @@ const createCategory = async (payload: ICreateCategoryPayload) => {
 		);
 	}
 
-	const category = await prisma.category.create({
+	const [category] = await prisma.$transaction([
+		prisma.category.create({
+			data: {
+				departmentId: payload.departmentId,
+				name: payload.name,
+				feeType: payload.feeType,
+				feeAmount: payload.feeType === "PAID" ? payload.feeAmount : null,
+				slaHours: payload.slaHours,
+			},
+		}),
+	]);
+
+	await prisma.auditLog.create({
 		data: {
-			departmentId: payload.departmentId,
-			name: payload.name,
-			feeType: payload.feeType,
-			feeAmount: payload.feeType === "PAID" ? payload.feeAmount : null,
-			slaHours: payload.slaHours,
+			actorId: actor.userId,
+			action: "CATEGORY_CREATED",
+			entityType: "Category",
+			entityId: category.id,
+			previousValue: undefined,
+			newValue: {
+				name: category.name,
+				departmentId: category.departmentId,
+				feeType: category.feeType,
+				feeAmount: category.feeAmount,
+				slaHours: category.slaHours,
+			},
 		},
 	});
 
@@ -104,7 +127,11 @@ const getSingleCategory = async (id: string) => {
 
 // UPDATE CATEGORY
 
-const updateCategory = async (id: string, payload: IUpdateCategoryPayload) => {
+const updateCategory = async (
+	id: string,
+	payload: IUpdateCategoryPayload,
+	actor: IRequestUser,
+) => {
 	const category = await prisma.category.findUnique({ where: { id } });
 
 	if (!category || category.deletedAt) {
@@ -145,32 +172,64 @@ const updateCategory = async (id: string, payload: IUpdateCategoryPayload) => {
 		}
 	}
 
-	const updated = await prisma.category.update({
-		where: { id },
-		data: {
-			name: payload.name,
-			feeType: payload.feeType,
-			feeAmount: nextFeeAmount,
-			slaHours: payload.slaHours,
-			isActive: payload.isActive,
-		},
-	});
+	const previousValue = {
+		name: category.name,
+		feeType: category.feeType,
+		feeAmount: category.feeAmount,
+		slaHours: category.slaHours,
+		isActive: category.isActive,
+	};
+
+	const [updated] = await prisma.$transaction([
+		prisma.category.update({
+			where: { id },
+			data: {
+				name: payload.name,
+				feeType: payload.feeType,
+				feeAmount: nextFeeAmount,
+				slaHours: payload.slaHours,
+				isActive: payload.isActive,
+			},
+		}),
+		prisma.auditLog.create({
+			data: {
+				actorId: actor.userId,
+				action: "CATEGORY_UPDATED",
+				entityType: "Category",
+				entityId: id,
+				previousValue,
+				newValue: JSON.parse(JSON.stringify(payload)),
+			},
+		}),
+	]);
 
 	return updated;
 };
 
 // SOFT DELETE CATEGORY
-const deleteCategory = async (id: string) => {
+const deleteCategory = async (id: string, actor: IRequestUser) => {
 	const category = await prisma.category.findUnique({ where: { id } });
 
 	if (!category || category.deletedAt) {
 		throw new AppError(httpStatus.NOT_FOUND, "Category not found");
 	}
 
-	const deleted = await prisma.category.update({
-		where: { id },
-		data: { deletedAt: new Date(), isActive: false },
-	});
+	const [deleted] = await prisma.$transaction([
+		prisma.category.update({
+			where: { id },
+			data: { deletedAt: new Date(), isActive: false },
+		}),
+		prisma.auditLog.create({
+			data: {
+				actorId: actor.userId,
+				action: "CATEGORY_DELETED",
+				entityType: "Category",
+				entityId: id,
+				previousValue: { deletedAt: null, isActive: category.isActive },
+				newValue: { deletedAt: new Date(), isActive: false },
+			},
+		}),
+	]);
 
 	return deleted;
 };

@@ -8,7 +8,8 @@ import { CategoryService } from "./category.service";
 // CREATE CATEGORY
 
 const createCategory = catchAsync(async (req: Request, res: Response) => {
-	const result = await CategoryService.createCategory(req.body);
+	const actor = req.user as IRequestUser;
+	const result = await CategoryService.createCategory(req.body, actor);
 
 	sendResponse(res, {
 		statusCode: httpStatus.CREATED,
@@ -60,9 +61,12 @@ const getSingleCategory = catchAsync(async (req: Request, res: Response) => {
 // UPDATE CATEGORY
 
 const updateCategory = catchAsync(async (req: Request, res: Response) => {
+	const actor = req.user as IRequestUser;
+
 	const result = await CategoryService.updateCategory(
 		req.params.id as string,
 		req.body,
+		actor,
 	);
 
 	sendResponse(res, {
@@ -76,7 +80,11 @@ const updateCategory = catchAsync(async (req: Request, res: Response) => {
 // DELETE (SOFT) CATEGORY
 
 const deleteCategory = catchAsync(async (req: Request, res: Response) => {
-	const result = await CategoryService.deleteCategory(req.params.id as string);
+	const actor = req.user as IRequestUser;
+	const result = await CategoryService.deleteCategory(
+		req.params.id as string,
+		actor,
+	);
 
 	sendResponse(res, {
 		statusCode: httpStatus.OK,

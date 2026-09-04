@@ -12,9 +12,18 @@ router.post("/sslcommerz/success", PaymentController.handleSSLCommerzSuccess);
 router.post("/sslcommerz/fail", PaymentController.handleSSLCommerzFail);
 router.post("/sslcommerz/cancel", PaymentController.handleSSLCommerzCancel);
 
-router.post("/initiate",auth(Role.CITIZEN),
+router.post(
+	"/initiate",
+	auth(Role.CITIZEN),
 	validateRequestBody(paymentValidationSchemas.InitiatePaymentZodSchema),
 	PaymentController.initiatePayment,
+);
+
+router.patch(
+	"/:id/refund",
+	auth(Role.ADMIN),
+	validateRequestBody(paymentValidationSchemas.ManualRefundZodSchema),
+	PaymentController.manualRefundPayment,
 );
 
 router.get("/:id", auth(), PaymentController.getSinglePayment);

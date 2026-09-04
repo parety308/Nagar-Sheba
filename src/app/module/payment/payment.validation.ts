@@ -8,6 +8,14 @@ const InitiatePaymentZodSchema = z.object({
 	),
 });
 
+const ManualRefundZodSchema = z.object({
+	reason: z
+		.string("reason must be a string")
+		.max(500, "reason must not exceed 500 characters")
+		.optional(),
+});
+
 export const paymentValidationSchemas = {
 	InitiatePaymentZodSchema,
+	ManualRefundZodSchema,
 };

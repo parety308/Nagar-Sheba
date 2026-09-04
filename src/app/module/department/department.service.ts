@@ -2,6 +2,7 @@ import httpStatus from "http-status";
 import { Role } from "../../../generated/prisma/enums";
 import { AppError } from "../../errors/AppError";
 import { prisma } from "../../lib/prisma";
+import { IRequestUser } from "../auth/auth.interface";
 import {
 	ICreateDepartmentPayload,
 	IDepartmentQuery,
@@ -9,7 +10,10 @@ import {
 } from "./department.interface";
 
 // create a new dept
-const createDepartment = async (payload: ICreateDepartmentPayload) => {
+const createDepartment = async (
+	payload: ICreateDepartmentPayload,
+	actor: IRequestUser,
+) => {
 	const existingDepartment = await prisma.department.findUnique({
 		where: { name: payload.name },
 	});
@@ -21,10 +25,23 @@ const createDepartment = async (payload: ICreateDepartmentPayload) => {
 		);
 	}
 
-	const department = await prisma.department.create({
+	const [department] = await prisma.$transaction([
+		prisma.department.create({
+			data: {
+				name: payload.name,
+				description: payload.description,
+			},
+		}),
+	]);
+
+	await prisma.auditLog.create({
 		data: {
-			name: payload.name,
-			description: payload.description,
+			actorId: actor.userId,
+			action: "DEPARTMENT_CREATED",
+			entityType: "Department",
+			entityId: department.id,
+			previousValue: undefined,
+			newValue: { name: department.name, description: department.description },
 		},
 	});
 
@@ -82,11 +99,12 @@ const getSingleDepartment = async (id: string) => {
 	return department;
 };
 
-//update department
+// update department
 
 const updateDepartment = async (
 	id: string,
 	payload: IUpdateDepartmentPayload,
+	actor: IRequestUser,
 ) => {
 	const department = await prisma.department.findUnique({ where: { id } });
 
@@ -107,33 +125,63 @@ const updateDepartment = async (
 		}
 	}
 
-	const updated = await prisma.department.update({
-		where: { id },
-		data: {
-			name: payload.name,
-			description: payload.description,
-		},
-	});
+	const previousValue = {
+		name: department.name,
+		description: department.description,
+	};
+
+	const [updated] = await prisma.$transaction([
+		prisma.department.update({
+			where: { id },
+			data: {
+				name: payload.name,
+				description: payload.description,
+			},
+		}),
+		prisma.auditLog.create({
+			data: {
+				actorId: actor.userId,
+				action: "DEPARTMENT_UPDATED",
+				entityType: "Department",
+				entityId: id,
+				previousValue,
+				newValue: JSON.parse(JSON.stringify(payload)),
+			},
+		}),
+	]);
 
 	return updated;
 };
 
-// soft deleted department
+// soft delete department
 
-const deleteDepartment = async (id: string) => {
+const deleteDepartment = async (id: string, actor: IRequestUser) => {
 	const department = await prisma.department.findUnique({ where: { id } });
 
 	if (!department || department.deletedAt) {
 		throw new AppError(httpStatus.NOT_FOUND, "Department not found");
 	}
 
-	const deleted = await prisma.department.update({
-		where: { id },
-		data: { deletedAt: new Date() },
-	});
+	const [deleted] = await prisma.$transaction([
+		prisma.department.update({
+			where: { id },
+			data: { deletedAt: new Date() },
+		}),
+		prisma.auditLog.create({
+			data: {
+				actorId: actor.userId,
+				action: "DEPARTMENT_DELETED",
+				entityType: "Department",
+				entityId: id,
+				previousValue: { deletedAt: null },
+				newValue: { deletedAt: new Date() },
+			},
+		}),
+	]);
 
 	return deleted;
 };
+
 export const DepartmentService = {
 	createDepartment,
 	getAllDepartments,

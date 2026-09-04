@@ -7,7 +7,8 @@ import { DepartmentService } from "./department.service";
 
 // create department
 const createDepartment = catchAsync(async (req: Request, res: Response) => {
-	const result = await DepartmentService.createDepartment(req.body);
+	const actor = req.user as IRequestUser;
+	const result = await DepartmentService.createDepartment(req.body, actor);
 
 	sendResponse(res, {
 		statusCode: httpStatus.CREATED,
@@ -39,7 +40,7 @@ const getAllDepartments = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-// get signle department
+// get single department
 const getSingleDepartment = catchAsync(async (req: Request, res: Response) => {
 	const result = await DepartmentService.getSingleDepartment(
 		req.params.id as string,
@@ -55,9 +56,12 @@ const getSingleDepartment = catchAsync(async (req: Request, res: Response) => {
 
 // update department
 const updateDepartment = catchAsync(async (req: Request, res: Response) => {
+	const actor = req.user as IRequestUser;
+
 	const result = await DepartmentService.updateDepartment(
 		req.params.id as string,
 		req.body,
+		actor,
 	);
 
 	sendResponse(res, {
@@ -70,8 +74,10 @@ const updateDepartment = catchAsync(async (req: Request, res: Response) => {
 
 // delete soft department
 const deleteDepartment = catchAsync(async (req: Request, res: Response) => {
+	const actor = req.user as IRequestUser;
 	const result = await DepartmentService.deleteDepartment(
 		req.params.id as string,
+		actor,
 	);
 
 	sendResponse(res, {
