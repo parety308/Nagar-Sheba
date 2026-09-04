@@ -17,7 +17,9 @@ import { IRequestUser } from "../auth/auth.interface";
 import {
 	IAuditLogQuery,
 	IProvisionStaffPayload,
+	IUpdateUserRolePayload,
 	IUpdateUserStatusPayload,
+	IUserListQuery,
 } from "./admin.interface";
 
 const generateTemporaryPassword = (): string => {
@@ -189,6 +191,186 @@ const updateUserStatus = async (
 	return safeUser;
 };
 
+// LIST / SEARCH USERS (paginated, filterable)
+
+const ALLOWED_USER_SORT_FIELDS = ["createdAt", "email", "role", "status"];
+
+const getAllUsers = async (query: IUserListQuery) => {
+	const page = Number(query.page) > 0 ? Number(query.page) : 1;
+	const limit = Math.min(
+		Number(query.limit) > 0 ? Number(query.limit) : 10,
+		100,
+	);
+	const skip = (page - 1) * limit;
+
+	const sortBy = ALLOWED_USER_SORT_FIELDS.includes(query.sortBy as string)
+		? (query.sortBy as string)
+		: "createdAt";
+	const sortOrder = query.sortOrder === "asc" ? "asc" : "desc";
+
+	const where = {
+		deletedAt: null,
+		...(query.role ? { role: query.role as Role } : {}),
+		...(query.status ? { status: query.status as AccountStatus } : {}),
+		...(query.search
+			? { email: { contains: query.search, mode: "insensitive" as const } }
+			: {}),
+	};
+
+	const [items, total] = await Promise.all([
+		prisma.user.findMany({
+			where,
+			skip,
+			take: limit,
+			orderBy: { [sortBy]: sortOrder },
+			select: {
+				id: true,
+				email: true,
+				role: true,
+				status: true,
+				authProvider: true,
+				isEmailVerified: true,
+				mustChangePassword: true,
+				createdAt: true,
+				updatedAt: true,
+				citizenProfile: { select: { fullName: true, phone: true } },
+				staffProfile: {
+					select: {
+						fullName: true,
+						title: true,
+						department: { select: { id: true, name: true } },
+					},
+				},
+				adminProfile: { select: { fullName: true } },
+			},
+		}),
+		prisma.user.count({ where }),
+	]);
+
+	return {
+		data: items,
+		meta: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+	};
+};
+
+
+
+const updateUserRole = async (
+	targetUserId: string,
+	payload: IUpdateUserRolePayload,
+	actor: IRequestUser,
+) => {
+	if (targetUserId === actor.userId) {
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			"You cannot change your own role",
+		);
+	}
+
+	const targetUser = await prisma.user.findUnique({
+		where: { id: targetUserId },
+		include: { staffProfile: true, adminProfile: true },
+	});
+
+	if (!targetUser || targetUser.deletedAt) {
+		throw new AppError(httpStatus.NOT_FOUND, "User not found");
+	}
+
+	if (targetUser.role === Role.CITIZEN) {
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			"Citizen accounts cannot be promoted through this endpoint",
+		);
+	}
+
+	if (payload.role === "CITIZEN" as any) {
+		// unreachable given zod enum, kept as a defensive guard
+		throw new AppError(httpStatus.BAD_REQUEST, "Cannot demote a user to CITIZEN");
+	}
+
+	if (targetUser.role === payload.role) {
+		throw new AppError(
+			httpStatus.CONFLICT,
+			`User already has the ${payload.role} role`,
+		);
+	}
+
+	let resolvedDepartmentId: string | undefined;
+
+	if (payload.role === "STAFF") {
+		const department = await prisma.department.findUnique({
+			where: { id: payload.departmentId },
+		});
+
+		if (!department || department.deletedAt) {
+			throw new AppError(httpStatus.NOT_FOUND, "Department not found");
+		}
+
+		resolvedDepartmentId = department.id;
+	}
+
+	const previousRole = targetUser.role;
+	const fullName =
+		targetUser.staffProfile?.fullName ??
+		targetUser.adminProfile?.fullName ??
+		"User";
+
+	const updated = await prisma.$transaction(async (tx) => {
+		// Drop the profile tied to the OLD role.
+		if (previousRole === Role.STAFF && targetUser.staffProfile) {
+			// Any request still assigned to this staff member is unassigned
+			// first, since StaffProfile deletion doesn't cascade that.
+			await tx.serviceRequest.updateMany({
+				where: { assignedStaffId: targetUserId },
+				data: { assignedStaffId: null },
+			});
+			await tx.staffProfile.delete({ where: { userId: targetUserId } });
+		} else if (previousRole === Role.ADMIN && targetUser.adminProfile) {
+			await tx.adminProfile.delete({ where: { userId: targetUserId } });
+		}
+
+		// Create the profile for the NEW role and flip User.role.
+		const user = await tx.user.update({
+			where: { id: targetUserId },
+			data: {
+				role: payload.role as Role,
+				...(payload.role === "STAFF"
+					? {
+							staffProfile: {
+								create: {
+									departmentId: resolvedDepartmentId as string,
+									fullName: payload.title ? fullName : fullName,
+									title: payload.title,
+								},
+							},
+						}
+					: {
+							adminProfile: {
+								create: { fullName },
+							},
+						}),
+			},
+		});
+
+		await tx.auditLog.create({
+			data: {
+				actorId: actor.userId,
+				action: "USER_ROLE_CHANGED",
+				entityType: "User",
+				entityId: targetUserId,
+				previousValue: { role: previousRole },
+				newValue: { role: payload.role, departmentId: resolvedDepartmentId },
+			},
+		});
+
+		return user;
+	});
+
+	const { passwordHash: _, ...safeUser } = updated;
+	return safeUser;
+};
+
+
 const getAuditLogs = async (query: IAuditLogQuery) => {
 	const page = Number(query.page) > 0 ? Number(query.page) : 1;
 	const limit = Math.min(
@@ -276,9 +458,12 @@ const getDashboardStats = async () => {
 	};
 };
 
+
 export const AdminService = {
 	provisionStaff,
 	updateUserStatus,
+	getAllUsers,
+	updateUserRole,
 	getAuditLogs,
 	getDashboardStats,
 };

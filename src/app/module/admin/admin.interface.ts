@@ -19,3 +19,21 @@ export interface IAuditLogQuery {
 	entityType?: string;
 	actorId?: string;
 }
+
+// NEW
+
+export interface IUserListQuery {
+	page?: number;
+	limit?: number;
+	role?: "CITIZEN" | "STAFF" | "ADMIN";
+	status?: "ACTIVE" | "BLOCKED";
+	search?: string; // matches email (contains, case-insensitive)
+	sortBy?: string;
+	sortOrder?: "asc" | "desc";
+}
+
+export interface IUpdateUserRolePayload {
+	role: "STAFF" | "ADMIN";
+	departmentId?: string; // required when the new role is STAFF
+	title?: string; // optional, carried over/set on the new StaffProfile
+}

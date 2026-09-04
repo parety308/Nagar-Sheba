@@ -35,7 +35,26 @@ const UpdateUserStatusZodSchema = z.object({
 	status: z.enum(["ACTIVE", "BLOCKED"], "status must be ACTIVE or BLOCKED"),
 });
 
+// NEW — CHANGE USER ROLE (STAFF <-> ADMIN only)
+
+const UpdateUserRoleZodSchema = z
+	.object({
+		role: z.enum(["STAFF", "ADMIN"], "role must be STAFF or ADMIN"),
+
+		departmentId: z.uuid("departmentId must be a valid UUID").optional(),
+
+		title: z
+			.string("Title must be a string")
+			.max(100, "Title must not exceed 100 characters")
+			.optional(),
+	})
+	.refine((data) => (data.role === "STAFF" ? !!data.departmentId : true), {
+		message: "departmentId is required when the new role is STAFF",
+		path: ["departmentId"],
+	});
+
 export const adminValidationSchemas = {
 	ProvisionStaffZodSchema,
 	UpdateUserStatusZodSchema,
+	UpdateUserRoleZodSchema,
 };

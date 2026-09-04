@@ -14,11 +14,20 @@ router.post(
 	AdminController.provisionStaff,
 );
 
+router.get("/users", auth(Role.ADMIN), AdminController.getAllUsers);
+
 router.patch(
 	"/users/:id/status",
 	auth(Role.ADMIN),
 	validateRequestBody(adminValidationSchemas.UpdateUserStatusZodSchema),
 	AdminController.updateUserStatus,
+);
+
+router.patch(
+	"/users/:id/role",
+	auth(Role.ADMIN),
+	validateRequestBody(adminValidationSchemas.UpdateUserRoleZodSchema),
+	AdminController.updateUserRole,
 );
 
 router.get("/audit-logs", auth(Role.ADMIN), AdminController.getAuditLogs);
