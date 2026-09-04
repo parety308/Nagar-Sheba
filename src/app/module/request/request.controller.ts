@@ -105,22 +105,24 @@ const cancelServiceRequest = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-const transitionRequestStatus = catchAsync(async (req: Request, res: Response) => {
-	const actor = req.user as IRequestUser;
+const transitionRequestStatus = catchAsync(
+	async (req: Request, res: Response) => {
+		const actor = req.user as IRequestUser;
 
-	const result = await RequestService.transitionRequestStatus(
-		req.params.id as string,
-		actor,
-		req.body,
-	);
+		const result = await RequestService.transitionRequestStatus(
+			req.params.id as string,
+			actor,
+			req.body,
+		);
 
-	sendResponse(res, {
-		statusCode: httpStatus.OK,
-		success: true,
-		message: "Request status updated successfully",
-		data: result,
-	});
-});
+		sendResponse(res, {
+			statusCode: httpStatus.OK,
+			success: true,
+			message: "Request status updated successfully",
+			data: result,
+		});
+	},
+);
 
 const reassignRequest = catchAsync(async (req: Request, res: Response) => {
 	const actor = req.user as IRequestUser;
@@ -155,6 +157,25 @@ const reopenRequest = catchAsync(async (req: Request, res: Response) => {
 		data: result,
 	});
 });
+
+const addAttachments = catchAsync(async (req: Request, res: Response) => {
+	const actor = req.user as IRequestUser;
+	const files = req.files as Express.Multer.File[] | undefined;
+
+	const result = await RequestService.addAttachmentsToRequest(
+		req.params.id as string,
+		actor,
+		req.body,
+		files,
+	);
+
+	sendResponse(res, {
+		statusCode: httpStatus.CREATED,
+		success: true,
+		message: "Attachment(s) uploaded successfully",
+		data: result,
+	});
+});
 export const RequestController = {
 	createServiceRequest,
 	getAllServiceRequests,
@@ -164,4 +185,5 @@ export const RequestController = {
 	transitionRequestStatus,
 	reassignRequest,
 	reopenRequest,
+	addAttachments,
 };

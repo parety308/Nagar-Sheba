@@ -30,21 +30,24 @@ const CreateServiceRequestZodSchema = z.object({
 		.max(180, "Longitude must be between -180 and 180"),
 });
 
-const requestStatusValues = Object.values(RequestStatus) as [string, ...string[]];
-
-// TRANSITION STATUS (API-22)
+const requestStatusValues = Object.values(RequestStatus) as [
+	string,
+	...string[],
+];
 
 const UpdateRequestStatusZodSchema = z.object({
-	toStatus: z.enum(requestStatusValues, "toStatus must be a valid request status"),
+	toStatus: z.enum(
+		requestStatusValues,
+		"toStatus must be a valid request status",
+	),
 	note: z
 		.string("note must be a string")
 		.max(1000, "note must not exceed 1000 characters")
 		.optional(),
 });
 
-// REASSIGN (API-23)
-
-const ReassignRequestZodSchema = z.object({
+const ReassignRequestZodSchema = z
+	.object({
 		staffId: z.uuid("staffId must be a valid UUID").optional(),
 		departmentId: z.uuid("departmentId must be a valid UUID").optional(),
 		reason: z
@@ -56,8 +59,6 @@ const ReassignRequestZodSchema = z.object({
 		message: "Provide either staffId or departmentId",
 	});
 
-// REOPEN (API-25)
-
 const ReopenRequestZodSchema = z.object({
 	reason: z
 		.string("A reason is required to reopen a request")
@@ -65,9 +66,19 @@ const ReopenRequestZodSchema = z.object({
 		.max(500, "Reason must not exceed 500 characters"),
 });
 
+const AddAttachmentZodSchema = z.object({
+	type: z
+		.enum(
+			["EVIDENCE", "RESOLUTION_PROOF"],
+			"type must be EVIDENCE or RESOLUTION_PROOF",
+		)
+		.optional(),
+});
+
 export const requestValidationSchemas = {
 	CreateServiceRequestZodSchema,
 	UpdateRequestStatusZodSchema,
 	ReassignRequestZodSchema,
 	ReopenRequestZodSchema,
+	AddAttachmentZodSchema,
 };

@@ -12,12 +12,14 @@ import { prisma } from "../../lib/prisma";
 import { uploadBufferToCloudinary } from "../../utils/uploadToCloudinary";
 import { IRequestUser } from "../auth/auth.interface";
 import {
+	IAddAttachmentPayload,
 	ICreateServiceRequestServicePayload,
 	IReassignRequestPayload,
 	IReopenRequestPayload,
 	IRequestQuery,
 	IUpdateStatusPayload,
 } from "./request.interface";
+import { PaymentService } from "../payment/payment.service";
 
 const generateTrackingRef = async () => {
 	const year = new Date().getFullYear();
@@ -50,7 +52,6 @@ const createRequestRecordWithUniqueRef = async (
 				(error.meta?.target as string[] | undefined)?.includes("trackingRef");
 
 			if (!isTrackingRefCollision) throw error;
-			
 		}
 	}
 
@@ -128,10 +129,12 @@ const createServiceRequest = async (
 		},
 	});
 
-	return {
-		...fullRequest,
-		paymentSession: isPaid ? null : undefined,
-	};
+	const paymentSession = isPaid
+		? await PaymentService.initiatePaymentSession(created.id, citizenId)
+		: null;
+
+	return { ...fullRequest, paymentSession };
+
 };
 
 const ALLOWED_SORT_FIELDS = [
@@ -335,7 +338,6 @@ const cancelServiceRequest = async (id: string, citizenId: string) => {
 		);
 	}
 
-
 	const [, updated] = await prisma.$transaction([
 		prisma.statusHistory.create({
 			data: {
@@ -355,11 +357,11 @@ const cancelServiceRequest = async (id: string, citizenId: string) => {
 	return updated;
 };
 
+const REOPEN_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 
-
-const REOPEN_WINDOW_MS = 3 * 24 * 60 * 60 * 1000; 
-
-const STAFF_ALLOWED_TRANSITIONS: Partial<Record<RequestStatus, RequestStatus[]>> = {
+const STAFF_ALLOWED_TRANSITIONS: Partial<
+	Record<RequestStatus, RequestStatus[]>
+> = {
 	[RequestStatus.ASSIGNED]: [RequestStatus.IN_PROGRESS],
 	[RequestStatus.IN_PROGRESS]: [RequestStatus.RESOLVED],
 };
@@ -371,7 +373,6 @@ const TERMINAL_STATUSES: RequestStatus[] = [
 
 const computeSlaDueAt = (fromDate: Date, slaHours: number) =>
 	new Date(fromDate.getTime() + slaHours * 60 * 60 * 1000);
-
 
 const transitionRequestStatus = async (
 	requestId: string,
@@ -404,7 +405,10 @@ const transitionRequestStatus = async (
 		}
 
 		if (request.assignedStaffId !== actor.userId) {
-			throw new AppError(httpStatus.FORBIDDEN, "This request is not assigned to you");
+			throw new AppError(
+				httpStatus.FORBIDDEN,
+				"This request is not assigned to you",
+			);
 		}
 
 		const allowedNext = STAFF_ALLOWED_TRANSITIONS[request.status] ?? [];
@@ -424,7 +428,10 @@ const transitionRequestStatus = async (
 		}
 
 		if (toStatus === request.status) {
-			throw new AppError(httpStatus.CONFLICT, "Request is already in the requested status");
+			throw new AppError(
+				httpStatus.CONFLICT,
+				"Request is already in the requested status",
+			);
 		}
 	} else {
 		throw new AppError(httpStatus.FORBIDDEN, "Not authorized for this action");
@@ -459,7 +466,10 @@ const transitionRequestStatus = async (
 				note: payload.note,
 			},
 		}),
-		prisma.serviceRequest.update({ where: { id: requestId }, data: updateData }),
+		prisma.serviceRequest.update({
+			where: { id: requestId },
+			data: updateData,
+		}),
 	];
 
 	if (isAdminOverride) {
@@ -480,7 +490,6 @@ const transitionRequestStatus = async (
 	const results = await prisma.$transaction(operations);
 	return results[1];
 };
-
 
 const reassignRequest = async (
 	requestId: string,
@@ -521,15 +530,26 @@ const reassignRequest = async (
 			include: { staffProfile: true },
 		});
 
-		if (!staff || staff.deletedAt || staff.role !== Role.STAFF || !staff.staffProfile) {
+		if (
+			!staff ||
+			staff.deletedAt ||
+			staff.role !== Role.STAFF ||
+			!staff.staffProfile
+		) {
 			throw new AppError(httpStatus.NOT_FOUND, "Staff member not found");
 		}
 
 		if (staff.status === AccountStatus.BLOCKED) {
-			throw new AppError(httpStatus.BAD_REQUEST, "Cannot assign a blocked staff member");
+			throw new AppError(
+				httpStatus.BAD_REQUEST,
+				"Cannot assign a blocked staff member",
+			);
 		}
 
-		if (payload.departmentId && payload.departmentId !== staff.staffProfile.departmentId) {
+		if (
+			payload.departmentId &&
+			payload.departmentId !== staff.staffProfile.departmentId
+		) {
 			throw new AppError(
 				httpStatus.BAD_REQUEST,
 				"Staff member does not belong to the specified department",
@@ -543,7 +563,6 @@ const reassignRequest = async (
 			newStatus = RequestStatus.ASSIGNED;
 			newSlaDueAt = computeSlaDueAt(now, request.category.slaHours);
 		}
-		
 	} else {
 		if (
 			request.status === RequestStatus.IN_PROGRESS ||
@@ -599,7 +618,10 @@ const reassignRequest = async (
 
 	const updateIndex = operations.length;
 	operations.push(
-		prisma.serviceRequest.update({ where: { id: requestId }, data: updateData }),
+		prisma.serviceRequest.update({
+			where: { id: requestId },
+			data: updateData,
+		}),
 	);
 
 	operations.push(
@@ -623,13 +645,14 @@ const reassignRequest = async (
 	return results[updateIndex];
 };
 
-
 const reopenRequest = async (
 	requestId: string,
 	citizenId: string,
 	payload: IReopenRequestPayload,
 ) => {
-	const request = await prisma.serviceRequest.findUnique({ where: { id: requestId } });
+	const request = await prisma.serviceRequest.findUnique({
+		where: { id: requestId },
+	});
 
 	if (!request || request.deletedAt) {
 		throw new AppError(httpStatus.NOT_FOUND, "Service request not found");
@@ -643,14 +666,20 @@ const reopenRequest = async (
 	}
 
 	if (request.status !== RequestStatus.RESOLVED) {
-		throw new AppError(httpStatus.CONFLICT, "Only a resolved request can be reopened");
+		throw new AppError(
+			httpStatus.CONFLICT,
+			"Only a resolved request can be reopened",
+		);
 	}
 
 	if (
 		!request.resolvedAt ||
 		Date.now() - request.resolvedAt.getTime() > REOPEN_WINDOW_MS
 	) {
-		throw new AppError(httpStatus.CONFLICT, "The 3-day reopen window has passed");
+		throw new AppError(
+			httpStatus.CONFLICT,
+			"The 3-day reopen window has passed",
+		);
 	}
 
 	const [, updated] = await prisma.$transaction([
@@ -666,11 +695,101 @@ const reopenRequest = async (
 		prisma.serviceRequest.update({
 			where: { id: requestId },
 			data: { status: RequestStatus.ASSIGNED, resolvedAt: null },
-			
 		}),
 	]);
 
 	return updated;
+};
+
+const MAX_ATTACHMENTS_PER_REQUEST = 5;
+const addAttachmentsToRequest = async (
+	requestId: string,
+	actor: IRequestUser,
+	payload: IAddAttachmentPayload,
+	files: Express.Multer.File[] | undefined,
+) => {
+	if (!files || files.length === 0) {
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			"At least one attachment file is required",
+		);
+	}
+
+	const request = await prisma.serviceRequest.findUnique({
+		where: { id: requestId },
+		include: { _count: { select: { attachments: true } } },
+	});
+
+	if (!request || request.deletedAt) {
+		throw new AppError(httpStatus.NOT_FOUND, "Service request not found");
+	}
+
+	let resolvedType: AttachmentType;
+
+	if (actor.role === Role.CITIZEN) {
+		if (request.citizenId !== actor.userId) {
+			throw new AppError(
+				httpStatus.FORBIDDEN,
+				"You do not have permission to attach files to this request",
+			);
+		}
+
+		if (payload.type && payload.type !== AttachmentType.EVIDENCE) {
+			throw new AppError(
+				httpStatus.BAD_REQUEST,
+				"A citizen may only attach EVIDENCE files",
+			);
+		}
+
+		resolvedType = AttachmentType.EVIDENCE;
+	} else if (actor.role === Role.STAFF) {
+		if (request.assignedStaffId !== actor.userId) {
+			throw new AppError(
+				httpStatus.FORBIDDEN,
+				"This request is not assigned to you",
+			);
+		}
+
+		if (payload.type && payload.type !== AttachmentType.RESOLUTION_PROOF) {
+			throw new AppError(
+				httpStatus.BAD_REQUEST,
+				"Staff may only attach RESOLUTION_PROOF files",
+			);
+		}
+
+		resolvedType = AttachmentType.RESOLUTION_PROOF;
+	} else {
+		resolvedType = (payload.type as AttachmentType) ?? AttachmentType.EVIDENCE;
+	}
+
+	const existingCount = request._count.attachments;
+
+	if (existingCount + files.length > MAX_ATTACHMENTS_PER_REQUEST) {
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			`This request already has ${existingCount} attachment(s); at most ${MAX_ATTACHMENTS_PER_REQUEST} are allowed in total`,
+		);
+	}
+
+	const uploaded = await Promise.all(
+		files.map((file) =>
+			uploadBufferToCloudinary(file.buffer, "nagar-sheba/request-attachments"),
+		),
+	);
+
+	await prisma.attachment.createMany({
+		data: uploaded.map((att) => ({
+			requestId: request.id,
+			uploadedBy: actor.userId,
+			url: att.secure_url,
+			type: resolvedType,
+		})),
+	});
+
+	return prisma.attachment.findMany({
+		where: { requestId: request.id },
+		orderBy: { createdAt: "asc" },
+	});
 };
 
 export const RequestService = {
@@ -682,4 +801,5 @@ export const RequestService = {
 	transitionRequestStatus,
 	reassignRequest,
 	reopenRequest,
+	addAttachmentsToRequest,
 };

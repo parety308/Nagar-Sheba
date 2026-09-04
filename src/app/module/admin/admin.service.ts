@@ -177,7 +177,8 @@ const updateUserStatus = async (
 		prisma.auditLog.create({
 			data: {
 				actorId: actor.userId,
-				action: payload.status === "BLOCKED" ? "USER_BLOCKED" : "USER_UNBLOCKED",
+				action:
+					payload.status === "BLOCKED" ? "USER_BLOCKED" : "USER_UNBLOCKED",
 				entityType: "User",
 				entityId: targetUserId,
 				previousValue: { status: targetUser.status },

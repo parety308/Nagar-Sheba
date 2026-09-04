@@ -25,7 +25,9 @@ const flagOverdueRequests = async () => {
 	});
 
 	if (result.count > 0) {
-		console.log(`[requestLifecycleJob] Flagged ${result.count} request(s) as overdue.`);
+		console.log(
+			`[requestLifecycleJob] Flagged ${result.count} request(s) as overdue.`,
+		);
 		// TODO (Module G): email Admin for each — fetch rows individually
 		// instead of updateMany if you need per-request data for the email.
 	}
@@ -68,7 +70,9 @@ const autoCloseExpiredResolutions = async () => {
 	}
 
 	if (candidates.length > 0) {
-		console.log(`[requestLifecycleJob] Auto-closed ${candidates.length} request(s).`);
+		console.log(
+			`[requestLifecycleJob] Auto-closed ${candidates.length} request(s).`,
+		);
 	}
 };
 

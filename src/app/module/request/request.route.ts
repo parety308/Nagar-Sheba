@@ -48,4 +48,12 @@ router.post(
 	RequestController.reopenRequest,
 );
 
+router.post(
+	"/:id/attachments",
+	auth(),
+	upload.array("attachments", 5), // must run before validateRequestBody, same as create
+	validateRequestBody(requestValidationSchemas.AddAttachmentZodSchema),
+	RequestController.addAttachments,
+);
+
 export const RequestRoutes = router;

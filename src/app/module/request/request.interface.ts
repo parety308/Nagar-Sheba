@@ -43,3 +43,7 @@ export interface IReassignRequestPayload {
 export interface IReopenRequestPayload {
 	reason: string;
 }
+
+export interface IAddAttachmentPayload {
+	type?: "EVIDENCE" | "RESOLUTION_PROOF";
+}
