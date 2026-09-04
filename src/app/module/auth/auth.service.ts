@@ -34,7 +34,6 @@ import {
 	IUpdateProfilePayload,
 } from "./auth.interface";
 
-
 const registerUser = async (payload: IRegisterUserPayload) => {
 	const { fullName, email: rawEmail, password, phone, address } = payload;
 
@@ -812,7 +811,10 @@ const updateProfileImage = async (payload: IUpdateProfileImagePayload) => {
 	return safeUser;
 };
 
-const updateMyProfile = async (user: IRequestUser,payload: IUpdateProfilePayload) => {
+const updateMyProfile = async (
+	user: IRequestUser,
+	payload: IUpdateProfilePayload,
+) => {
 	const currentUser = await prisma.user.findUnique({
 		where: { id: user.userId },
 	});
@@ -888,5 +890,5 @@ export const AuthService = {
 	resetPassword,
 	verifyRegistrationEmail,
 	updateProfileImage,
-	updateMyProfile
+	updateMyProfile,
 };

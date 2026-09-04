@@ -3,5 +3,7 @@ import httpStatus from "http-status";
 import { AppError } from "../errors/AppError";
 
 export const notFound = (req: Request, _res: Response, next: NextFunction) => {
-	next(new AppError(httpStatus.NOT_FOUND, `Route not found: ${req.originalUrl}`));
+	next(
+		new AppError(httpStatus.NOT_FOUND, `Route not found: ${req.originalUrl}`),
+	);
 };

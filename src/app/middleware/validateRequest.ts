@@ -14,7 +14,11 @@ export const validateRequestBody = (schema: z.ZodType) => {
 				message: issue.message,
 			}));
 
-			throw new AppError(httpStatus.BAD_REQUEST, "Validation failed", errorMessages);
+			throw new AppError(
+				httpStatus.BAD_REQUEST,
+				"Validation failed",
+				errorMessages,
+			);
 		}
 
 		req.body = result.data;

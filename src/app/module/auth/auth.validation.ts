@@ -121,7 +121,6 @@ const ProfileImageZodSchema = z.object({
 	size: z.number().max(5 * 1024 * 1024, "Image must be smaller than 5MB"),
 });
 
-
 const UpdateProfileZodSchema = z
 	.object({
 		fullName: z
@@ -160,5 +159,5 @@ export const authValidationSchemas = {
 	RefreshTokenZodSchema,
 	CitizenEmailVerifyZodSchema,
 	ProfileImageZodSchema,
-	UpdateProfileZodSchema
+	UpdateProfileZodSchema,
 };

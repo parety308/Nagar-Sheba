@@ -17,16 +17,16 @@ export const globalErrorHandler = async (
 	}
 
 	let statusCode: Number = httpStatus.INTERNAL_SERVER_ERROR;
-let errorMessage = "Internal Server Error";
-let errorName = "Internal Server Error";
-let errorMessages: { path: string; message: string }[] = [];
+	let errorMessage = "Internal Server Error";
+	let errorName = "Internal Server Error";
+	let errorMessages: { path: string; message: string }[] = [];
 
 	// App Error
 	if (err instanceof AppError) {
 		statusCode = err.statusCode;
 		errorMessage = err.message;
 		errorName = "AppError";
-		errorMessages = err.errorMessages || []; 
+		errorMessages = err.errorMessages || [];
 	}
 
 	// Multer Error
@@ -89,12 +89,16 @@ let errorMessages: { path: string; message: string }[] = [];
 	}
 
 	res.status(statusCode as number).json({
-	success: false,
-	statusCode,
-	name: config.node_env === "development" ? errorName : "Internal Server Error",
-	message: config.node_env === "development" ? errorMessage : "Internal Server Error",
-	errors: errorMessages,
-	error: config.node_env === "development" ? err : undefined,
-	stack: config.node_env === "development" ? err.stack : undefined,
-});
+		success: false,
+		statusCode,
+		name:
+			config.node_env === "development" ? errorName : "Internal Server Error",
+		message:
+			config.node_env === "development"
+				? errorMessage
+				: "Internal Server Error",
+		errors: errorMessages,
+		error: config.node_env === "development" ? err : undefined,
+		stack: config.node_env === "development" ? err.stack : undefined,
+	});
 };

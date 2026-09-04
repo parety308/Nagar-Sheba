@@ -57,7 +57,7 @@ export interface IUpdateProfileImagePayload {
 }
 export interface IUpdateProfilePayload {
 	fullName?: string;
-	phone?: string;   
-	address?: string; 
-	title?: string;  
+	phone?: string;
+	address?: string;
+	title?: string;
 }

@@ -7,7 +7,6 @@ import { IRequestUser } from "./auth.interface";
 import { AuthService } from "./auth.service";
 import { authValidationSchemas } from "./auth.validation";
 
-
 const isProd = process.env.NODE_ENV === "production";
 const accessTokenCookieOptions = {
 	httpOnly: true,
@@ -23,8 +22,6 @@ const refreshTokenCookieOptions = {
 	maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
 };
 
-
-
 const registerUser = catchAsync(async (req: Request, res: Response) => {
 	const payload = req.body;
 
@@ -37,7 +34,6 @@ const registerUser = catchAsync(async (req: Request, res: Response) => {
 		data: null,
 	});
 });
-
 
 const verifyCitizenEmail = catchAsync(async (req: Request, res: Response) => {
 	const payload = req.body;
@@ -62,7 +58,6 @@ const verifyCitizenEmail = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-
 const googleLogin = catchAsync(async (req: Request, res: Response) => {
 	const payload = req.body;
 	const result = await AuthService.googleLogin(payload);
@@ -83,7 +78,6 @@ const googleLogin = catchAsync(async (req: Request, res: Response) => {
 		},
 	});
 });
-
 
 const loginUser = catchAsync(async (req: Request, res: Response) => {
 	const payload = req.body;
@@ -109,12 +103,14 @@ const loginUser = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-
 const getMe = catchAsync(async (req: Request, res: Response) => {
 	const user = req.user as IRequestUser;
 
 	if (!user) {
-		throw new AppError(httpStatus.UNAUTHORIZED, "User information is missing in the request");
+		throw new AppError(
+			httpStatus.UNAUTHORIZED,
+			"User information is missing in the request",
+		);
 	}
 
 	const result = await AuthService.getMe(user);
@@ -272,5 +268,5 @@ export const AuthController = {
 	resetPassword,
 	verifyCitizenEmail,
 	updateProfileImage,
-	updateMyProfile
+	updateMyProfile,
 };

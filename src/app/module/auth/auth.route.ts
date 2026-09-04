@@ -7,9 +7,6 @@ import { authValidationSchemas } from "./auth.validation";
 
 const router = Router();
 
-
-
-
 router.post(
 	"/register",
 	validateRequestBody(authValidationSchemas.RegisterUserZodSchema),
@@ -27,7 +24,6 @@ router.post(
 	validateRequestBody(authValidationSchemas.GoogleLoginZodSchema),
 	AuthController.googleLogin,
 );
-
 
 router.post(
 	"/login",
@@ -47,9 +43,7 @@ router.post(
 	AuthController.resetPassword,
 );
 
-
 router.get("/me", auth(), AuthController.getMe);
-
 
 router.post(
 	"/refresh-token",
@@ -63,7 +57,6 @@ router.patch(
 	upload.single("profileImage"),
 	AuthController.updateProfileImage,
 );
-
 
 router.post("/logout", AuthController.logoutUser);
 
