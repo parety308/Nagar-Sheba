@@ -20,6 +20,7 @@ import {
 	IRequestQuery,
 	IUpdateStatusPayload,
 } from "./request.interface";
+import { NotificationService } from "../notification/notification.service";
 
 const generateTrackingRef = async () => {
 	const year = new Date().getFullYear();
@@ -501,6 +502,19 @@ const transitionRequestStatus = async (
 	}
 
 	const results = await prisma.$transaction(operations);
+	NotificationService.notifyUser({
+	userId: request.citizenId,
+	type: "REQUEST_STATUS_CHANGED",
+	message: `Your request "${request.title}" status changed to ${toStatus}.`,
+});
+
+if (toStatus === RequestStatus.ASSIGNED && request.assignedStaffId) {
+	NotificationService.notifyUser({
+		userId: request.assignedStaffId,
+		type: "REQUEST_ASSIGNED",
+		message: `You have been assigned request "${request.title}".`,
+	});
+}
 	return results[1];
 };
 
@@ -655,6 +669,13 @@ const reassignRequest = async (
 	);
 
 	const results = await prisma.$transaction(operations);
+	if (resolvedStaffId) {
+	NotificationService.notifyUser({
+		userId: resolvedStaffId,
+		type: "REQUEST_REASSIGNED",
+		message: `You have been assigned request "${request.title}".`,
+	});
+}
 	return results[updateIndex];
 };
 

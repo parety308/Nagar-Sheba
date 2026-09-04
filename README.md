@@ -321,16 +321,5 @@ All variables required by `src/app/config/index.ts`. See `.env.example` for the 
 
 ---
 
-## 📤 Submission Details
-
-```text
-Project Name    : Nagar Sheba — City Complaint & Service Request Platform
-Backend Repo    : <add repo URL>
-Live API        : <add deployed URL>
-API Docs        : <add Postman/Swagger link>
-Demo Video      : <add video link>
-Admin Email     : <dedicated demo admin email — do not reuse real credentials>
-Admin Password  : <dedicated demo admin password>
-```
 
 > ⚠️ Use dedicated demo credentials for evaluation, never real production secrets.

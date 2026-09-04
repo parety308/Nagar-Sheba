@@ -11,5 +11,6 @@ model Notification {
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId])
+  @@index([userId, isRead])
   @@map("notifications")
 }

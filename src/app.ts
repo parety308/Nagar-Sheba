@@ -15,6 +15,7 @@ import { DepartmentRoutes } from "./app/module/department/department.route";
 import { FeedbackRoutes } from "./app/module/feedback/feedback.route";
 import { PaymentRoutes } from "./app/module/payment/payment.route";
 import { RequestRoutes } from "./app/module/request/request.route";
+import { NotificationRoutes } from "./app/module/notification/notification.route";
 
 const app: Application = express();
 
@@ -49,6 +50,7 @@ app.use("/api/v1/requests", RequestRoutes);
 app.use("/api/v1/admin", AdminRoutes);
 app.use("/api/v1/payments", PaymentRoutes);
 app.use("/api/v1/feedbacks", FeedbackRoutes);
+app.use("/api/v1/notifications", NotificationRoutes);
 
 app.get("/", async (req: Request, res: Response) => {
 	res.status(httpStatus.OK).json({

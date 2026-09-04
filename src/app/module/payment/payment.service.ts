@@ -13,6 +13,7 @@ import { prisma } from "../../lib/prisma";
 import { createSSLCommerzInstance } from "../../lib/sslcommerz";
 import { IRequestUser } from "../auth/auth.interface";
 import { IPaymentQuery } from "./payment.interface";
+import { NotificationService } from "../notification/notification.service";
 
 type TRequestForPayment = {
 	id: string;
@@ -214,6 +215,11 @@ const completePayment = async (paymentId: string) => {
 			},
 		}),
 	]);
+	NotificationService.notifyUser({
+	userId: payment.request.citizenId,
+	type: "PAYMENT_COMPLETED",
+	message: `Your payment of ${payment.amount} BDT was completed successfully.`,
+});
 };
 
 const failPaymentIfPending = async (paymentId: string) => {
