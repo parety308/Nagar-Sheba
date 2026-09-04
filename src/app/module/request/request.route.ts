@@ -27,4 +27,25 @@ router.post(
 	RequestController.cancelServiceRequest,
 );
 
+router.patch(
+	"/:id/status",
+	auth(Role.STAFF, Role.ADMIN),
+	validateRequestBody(requestValidationSchemas.UpdateRequestStatusZodSchema),
+	RequestController.transitionRequestStatus,
+);
+
+router.patch(
+	"/:id/reassign",
+	auth(Role.ADMIN),
+	validateRequestBody(requestValidationSchemas.ReassignRequestZodSchema),
+	RequestController.reassignRequest,
+);
+
+router.post(
+	"/:id/reopen",
+	auth(Role.CITIZEN),
+	validateRequestBody(requestValidationSchemas.ReopenRequestZodSchema),
+	RequestController.reopenRequest,
+);
+
 export const RequestRoutes = router;

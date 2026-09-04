@@ -105,10 +105,63 @@ const cancelServiceRequest = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
+const transitionRequestStatus = catchAsync(async (req: Request, res: Response) => {
+	const actor = req.user as IRequestUser;
+
+	const result = await RequestService.transitionRequestStatus(
+		req.params.id as string,
+		actor,
+		req.body,
+	);
+
+	sendResponse(res, {
+		statusCode: httpStatus.OK,
+		success: true,
+		message: "Request status updated successfully",
+		data: result,
+	});
+});
+
+const reassignRequest = catchAsync(async (req: Request, res: Response) => {
+	const actor = req.user as IRequestUser;
+
+	const result = await RequestService.reassignRequest(
+		req.params.id as string,
+		actor,
+		req.body,
+	);
+
+	sendResponse(res, {
+		statusCode: httpStatus.OK,
+		success: true,
+		message: "Request reassigned successfully",
+		data: result,
+	});
+});
+
+const reopenRequest = catchAsync(async (req: Request, res: Response) => {
+	const actor = req.user as IRequestUser;
+
+	const result = await RequestService.reopenRequest(
+		req.params.id as string,
+		actor.userId,
+		req.body,
+	);
+
+	sendResponse(res, {
+		statusCode: httpStatus.OK,
+		success: true,
+		message: "Request reopened successfully",
+		data: result,
+	});
+});
 export const RequestController = {
 	createServiceRequest,
 	getAllServiceRequests,
 	getSingleServiceRequest,
 	searchServiceRequests,
 	cancelServiceRequest,
+	transitionRequestStatus,
+	reassignRequest,
+	reopenRequest,
 };

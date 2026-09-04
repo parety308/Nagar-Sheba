@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Nagar Sheba Account</title>
+</head>
+<body style="
+    margin: 0;
+    padding: 0;
+    background-color: #f4f7fb;
+    font-family: Arial, Helvetica, sans-serif;
+">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0"
+    style="background-color: #f4f7fb; padding: 40px 15px;">
+<tr>
+    <td align="center">
+
+        <table width="100%" cellpadding="0" cellspacing="0" border="0"
+            style="
+                max-width: 520px;
+                background-color: #ffffff;
+                border-radius: 16px;
+                overflow: hidden;
+                box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+            ">
+
+            <tr>
+                <td align="center" style="background-color: #2563eb; padding: 32px 20px;">
+                    <h1 style="margin: 0; color: #ffffff; font-size: 26px; font-weight: 700;">
+                        Welcome to Nagar Sheba
+                    </h1>
+                    <p style="margin: 10px 0 0; color: #dbeafe; font-size: 15px;">
+                        Your <%= role %> account has been created
+                    </p>
+                </td>
+            </tr>
+
+            <tr>
+                <td style="padding: 40px 35px;">
+                    <p style="margin: 0 0 20px; color: #374151; font-size: 16px; line-height: 1.6;">
+                        Hello <%= fullName %>,
+                    </p>
+                    <p style="margin: 0 0 25px; color: #6b7280; font-size: 15px; line-height: 1.7;">
+                        An administrator has created a Nagar Sheba account for you. Use the
+                        credentials below to sign in.
+                    </p>
+
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                        style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;">
+                        <tr>
+                            <td style="padding: 18px;">
+                                <p style="margin: 0 0 6px; color: #9ca3af; font-size: 12px;">LOGIN EMAIL</p>
+                                <p style="margin: 0 0 16px; color: #374151; font-size: 15px; font-weight: 600;">
+                                    <%= organizationEmail %>
+                                </p>
+                                <p style="margin: 0 0 6px; color: #9ca3af; font-size: 12px;">TEMPORARY PASSWORD</p>
+                                <p style="margin: 0; color: #374151; font-size: 18px; font-weight: 700; letter-spacing: 1px;">
+                                    <%= temporaryPassword %>
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <p style="margin: 25px 0 0; color: #dc2626; font-size: 14px; line-height: 1.6;">
+                        <strong>You must change this password the first time you log in.</strong>
+                    </p>
+                </td>
+            </tr>
+
+            <tr>
+                <td align="center" style="background-color: #f9fafb; padding: 22px; border-top: 1px solid #e5e7eb;">
+                    <p style="margin: 0; color: #9ca3af; font-size: 12px;">
+                        © <%= new Date().getFullYear() %> Nagar Sheba. All rights reserved.
+                    </p>
+                </td>
+            </tr>
+
+        </table>
+
+    </td>
+</tr>
+</table>
+
+</body>
+</html>

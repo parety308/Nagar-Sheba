@@ -28,3 +28,18 @@ export interface ISearchRequestQuery {
 	page?: number;
 	limit?: number;
 }
+
+export interface IUpdateStatusPayload {
+	toStatus: string; // validated against RequestStatus enum by zod
+	note?: string;
+}
+
+export interface IReassignRequestPayload {
+	staffId?: string;
+	departmentId?: string;
+	reason?: string;
+}
+
+export interface IReopenRequestPayload {
+	reason: string;
+}

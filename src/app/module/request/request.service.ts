@@ -1,6 +1,7 @@
 import httpStatus from "http-status";
 import { Prisma } from "../../../generated/prisma/client";
 import {
+	AccountStatus,
 	AttachmentType,
 	FeeType,
 	RequestStatus,
@@ -12,7 +13,10 @@ import { uploadBufferToCloudinary } from "../../utils/uploadToCloudinary";
 import { IRequestUser } from "../auth/auth.interface";
 import {
 	ICreateServiceRequestServicePayload,
+	IReassignRequestPayload,
+	IReopenRequestPayload,
 	IRequestQuery,
+	IUpdateStatusPayload,
 } from "./request.interface";
 
 const generateTrackingRef = async () => {
@@ -331,8 +335,6 @@ const cancelServiceRequest = async (id: string, citizenId: string) => {
 		);
 	}
 
-	// TODO (Module E): if feeCharged is set and its Payment is COMPLETED,
-	// trigger a provider refund here before/inside this transaction.
 
 	const [, updated] = await prisma.$transaction([
 		prisma.statusHistory.create({
@@ -353,10 +355,331 @@ const cancelServiceRequest = async (id: string, citizenId: string) => {
 	return updated;
 };
 
+
+
+const REOPEN_WINDOW_MS = 3 * 24 * 60 * 60 * 1000; 
+
+const STAFF_ALLOWED_TRANSITIONS: Partial<Record<RequestStatus, RequestStatus[]>> = {
+	[RequestStatus.ASSIGNED]: [RequestStatus.IN_PROGRESS],
+	[RequestStatus.IN_PROGRESS]: [RequestStatus.RESOLVED],
+};
+
+const TERMINAL_STATUSES: RequestStatus[] = [
+	RequestStatus.CLOSED,
+	RequestStatus.CANCELLED,
+];
+
+const computeSlaDueAt = (fromDate: Date, slaHours: number) =>
+	new Date(fromDate.getTime() + slaHours * 60 * 60 * 1000);
+
+
+const transitionRequestStatus = async (
+	requestId: string,
+	actor: IRequestUser,
+	payload: IUpdateStatusPayload,
+) => {
+	const toStatus = payload.toStatus as RequestStatus;
+
+	const request = await prisma.serviceRequest.findUnique({
+		where: { id: requestId },
+		include: { category: { select: { slaHours: true } } },
+	});
+
+	if (!request || request.deletedAt) {
+		throw new AppError(httpStatus.NOT_FOUND, "Service request not found");
+	}
+
+	const isAdminOverride = actor.role === Role.ADMIN;
+
+	if (actor.role === Role.STAFF) {
+		const staffProfile = await prisma.staffProfile.findUnique({
+			where: { userId: actor.userId },
+		});
+
+		if (!staffProfile || staffProfile.departmentId !== request.departmentId) {
+			throw new AppError(
+				httpStatus.FORBIDDEN,
+				"You do not have permission to act on this request",
+			);
+		}
+
+		if (request.assignedStaffId !== actor.userId) {
+			throw new AppError(httpStatus.FORBIDDEN, "This request is not assigned to you");
+		}
+
+		const allowedNext = STAFF_ALLOWED_TRANSITIONS[request.status] ?? [];
+
+		if (!allowedNext.includes(toStatus)) {
+			throw new AppError(
+				httpStatus.CONFLICT,
+				`Cannot transition from ${request.status} to ${toStatus}`,
+			);
+		}
+	} else if (isAdminOverride) {
+		if (TERMINAL_STATUSES.includes(request.status)) {
+			throw new AppError(
+				httpStatus.CONFLICT,
+				`Request is already ${request.status} and cannot be changed further`,
+			);
+		}
+
+		if (toStatus === request.status) {
+			throw new AppError(httpStatus.CONFLICT, "Request is already in the requested status");
+		}
+	} else {
+		throw new AppError(httpStatus.FORBIDDEN, "Not authorized for this action");
+	}
+
+	if (toStatus === RequestStatus.RESOLVED && !payload.note?.trim()) {
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			"A resolution note is required to resolve a request",
+		);
+	}
+
+	const now = new Date();
+	const updateData: Prisma.ServiceRequestUpdateInput = { status: toStatus };
+
+	if (toStatus === RequestStatus.ASSIGNED && !request.slaDueAt) {
+		updateData.slaDueAt = computeSlaDueAt(now, request.category.slaHours);
+	}
+
+	if (toStatus === RequestStatus.RESOLVED) {
+		updateData.resolvedAt = now;
+		updateData.isOverdue = request.slaDueAt ? now > request.slaDueAt : false;
+	}
+
+	const operations: Prisma.PrismaPromise<any>[] = [
+		prisma.statusHistory.create({
+			data: {
+				requestId: request.id,
+				fromStatus: request.status,
+				toStatus,
+				changedBy: actor.userId,
+				note: payload.note,
+			},
+		}),
+		prisma.serviceRequest.update({ where: { id: requestId }, data: updateData }),
+	];
+
+	if (isAdminOverride) {
+		operations.push(
+			prisma.auditLog.create({
+				data: {
+					actorId: actor.userId,
+					action: "REQUEST_STATUS_OVERRIDDEN",
+					entityType: "ServiceRequest",
+					entityId: request.id,
+					previousValue: { status: request.status },
+					newValue: { status: toStatus, note: payload.note },
+				},
+			}),
+		);
+	}
+
+	const results = await prisma.$transaction(operations);
+	return results[1];
+};
+
+
+const reassignRequest = async (
+	requestId: string,
+	adminActor: IRequestUser,
+	payload: IReassignRequestPayload,
+) => {
+	const request = await prisma.serviceRequest.findUnique({
+		where: { id: requestId },
+		include: { category: { select: { slaHours: true } } },
+	});
+
+	if (!request || request.deletedAt) {
+		throw new AppError(httpStatus.NOT_FOUND, "Service request not found");
+	}
+
+	if (TERMINAL_STATUSES.includes(request.status)) {
+		throw new AppError(
+			httpStatus.CONFLICT,
+			`Request is already ${request.status} and can no longer be reassigned`,
+		);
+	}
+
+	const now = new Date();
+	const previousState = {
+		departmentId: request.departmentId,
+		assignedStaffId: request.assignedStaffId,
+		status: request.status,
+	};
+
+	let resolvedDepartmentId: string;
+	let resolvedStaffId: string | null;
+	let newStatus: RequestStatus | undefined;
+	let newSlaDueAt: Date | null | undefined;
+
+	if (payload.staffId) {
+		const staff = await prisma.user.findUnique({
+			where: { id: payload.staffId },
+			include: { staffProfile: true },
+		});
+
+		if (!staff || staff.deletedAt || staff.role !== Role.STAFF || !staff.staffProfile) {
+			throw new AppError(httpStatus.NOT_FOUND, "Staff member not found");
+		}
+
+		if (staff.status === AccountStatus.BLOCKED) {
+			throw new AppError(httpStatus.BAD_REQUEST, "Cannot assign a blocked staff member");
+		}
+
+		if (payload.departmentId && payload.departmentId !== staff.staffProfile.departmentId) {
+			throw new AppError(
+				httpStatus.BAD_REQUEST,
+				"Staff member does not belong to the specified department",
+			);
+		}
+
+		resolvedDepartmentId = staff.staffProfile.departmentId;
+		resolvedStaffId = staff.id;
+
+		if (request.status === RequestStatus.SUBMITTED) {
+			newStatus = RequestStatus.ASSIGNED;
+			newSlaDueAt = computeSlaDueAt(now, request.category.slaHours);
+		}
+		
+	} else {
+		if (
+			request.status === RequestStatus.IN_PROGRESS ||
+			request.status === RequestStatus.RESOLVED
+		) {
+			throw new AppError(
+				httpStatus.CONFLICT,
+				"Cannot unassign a request already in progress or resolved — provide a replacement staffId instead",
+			);
+		}
+
+		const department = await prisma.department.findUnique({
+			where: { id: payload.departmentId },
+		});
+
+		if (!department || department.deletedAt) {
+			throw new AppError(httpStatus.NOT_FOUND, "Department not found");
+		}
+
+		resolvedDepartmentId = department.id;
+		resolvedStaffId = null;
+
+		if (request.status === RequestStatus.ASSIGNED) {
+			newStatus = RequestStatus.SUBMITTED;
+			newSlaDueAt = null;
+		}
+	}
+
+	const updateData: Prisma.ServiceRequestUpdateInput = {
+		department: { connect: { id: resolvedDepartmentId } },
+		assignedStaff: resolvedStaffId
+			? { connect: { id: resolvedStaffId } }
+			: { disconnect: true },
+		...(newStatus ? { status: newStatus } : {}),
+		...(newSlaDueAt !== undefined ? { slaDueAt: newSlaDueAt } : {}),
+	};
+
+	const operations: Prisma.PrismaPromise<any>[] = [];
+
+	if (newStatus) {
+		operations.push(
+			prisma.statusHistory.create({
+				data: {
+					requestId: request.id,
+					fromStatus: request.status,
+					toStatus: newStatus,
+					changedBy: adminActor.userId,
+					note: payload.reason ?? "Reassigned by Admin",
+				},
+			}),
+		);
+	}
+
+	const updateIndex = operations.length;
+	operations.push(
+		prisma.serviceRequest.update({ where: { id: requestId }, data: updateData }),
+	);
+
+	operations.push(
+		prisma.auditLog.create({
+			data: {
+				actorId: adminActor.userId,
+				action: "REQUEST_REASSIGNED",
+				entityType: "ServiceRequest",
+				entityId: request.id,
+				previousValue: previousState,
+				newValue: {
+					departmentId: resolvedDepartmentId,
+					assignedStaffId: resolvedStaffId,
+					reason: payload.reason,
+				},
+			},
+		}),
+	);
+
+	const results = await prisma.$transaction(operations);
+	return results[updateIndex];
+};
+
+
+const reopenRequest = async (
+	requestId: string,
+	citizenId: string,
+	payload: IReopenRequestPayload,
+) => {
+	const request = await prisma.serviceRequest.findUnique({ where: { id: requestId } });
+
+	if (!request || request.deletedAt) {
+		throw new AppError(httpStatus.NOT_FOUND, "Service request not found");
+	}
+
+	if (request.citizenId !== citizenId) {
+		throw new AppError(
+			httpStatus.FORBIDDEN,
+			"You do not have permission to reopen this request",
+		);
+	}
+
+	if (request.status !== RequestStatus.RESOLVED) {
+		throw new AppError(httpStatus.CONFLICT, "Only a resolved request can be reopened");
+	}
+
+	if (
+		!request.resolvedAt ||
+		Date.now() - request.resolvedAt.getTime() > REOPEN_WINDOW_MS
+	) {
+		throw new AppError(httpStatus.CONFLICT, "The 3-day reopen window has passed");
+	}
+
+	const [, updated] = await prisma.$transaction([
+		prisma.statusHistory.create({
+			data: {
+				requestId: request.id,
+				fromStatus: request.status,
+				toStatus: RequestStatus.ASSIGNED,
+				changedBy: citizenId,
+				note: payload.reason,
+			},
+		}),
+		prisma.serviceRequest.update({
+			where: { id: requestId },
+			data: { status: RequestStatus.ASSIGNED, resolvedAt: null },
+			
+		}),
+	]);
+
+	return updated;
+};
+
 export const RequestService = {
 	createServiceRequest,
 	getAllServiceRequests,
 	getSingleServiceRequest,
 	searchServiceRequests,
 	cancelServiceRequest,
+	transitionRequestStatus,
+	reassignRequest,
+	reopenRequest,
 };
