@@ -1,61 +1,92 @@
 import httpStatus from "http-status";
-import type Stripe from "stripe";
+import { Prisma } from "../../../generated/prisma/client";
 import {
 	PaymentProvider,
 	PaymentStatus,
 	RequestStatus,
 	Role,
 } from "../../../generated/prisma/enums";
-import { Prisma } from "../../../generated/prisma/client";
 import config from "../../config";
 import { AppError } from "../../errors/AppError";
-import { stripeClient } from "../../lib/stripe";
 import { prisma } from "../../lib/prisma";
+import { createSSLCommerzInstance } from "../../lib/sslcommerz";
 import { IRequestUser } from "../auth/auth.interface";
 import { IPaymentQuery } from "./payment.interface";
 
-// CREATE A STRIPE CHECKOUT SESSION
-// Amount is always derived from what's already stored on the request
-// (feeCharged, snapshotted at submission time) — never from the client.
+type TRequestForPayment = {
+	id: string;
+	trackingRef: string;
+	title: string;
+	citizen: {
+		email: string;
+		citizenProfile: {
+			fullName: string;
+			phone: string | null;
+			address: string | null;
+		} | null;
+	};
+};
 
-const createStripeCheckoutSession = async (
-	request: { id: string; trackingRef: string; title: string },
+// tran_id has to be unique per attempt — SSLCommerz doesn't let you "retrieve
+// and reuse" a session the way Stripe checkout sessions work, so every
+// initiate call (including a retry) gets a fresh one.
+const buildTranId = (requestId: string) =>
+	`NS-${requestId.slice(0, 8)}-${Date.now()}`;
+
+const createSSLCommerzSession = async (
+	request: TRequestForPayment,
 	amount: Prisma.Decimal,
+	tranId: string,
 ) => {
-	const unitAmount = Math.round(Number(amount) * 100);
+	const sslcz = createSSLCommerzInstance();
 
-	return stripeClient.checkout.sessions.create({
-		mode: "payment",
-		payment_method_types: ["card"],
-		line_items: [
-			{
-				price_data: {
-					currency: config.stripe.currency,
-					product_data: {
-						name: `Nagar Sheba — ${request.title}`,
-						description: `Service request ${request.trackingRef}`,
-					},
-					unit_amount: unitAmount,
-				},
-				quantity: 1,
-			},
-		],
-		metadata: { requestId: request.id },
-		success_url: `${config.frontend_url}/payments/success?requestId=${request.id}`,
-		cancel_url: `${config.frontend_url}/payments/cancel?requestId=${request.id}`,
-	});
+	const initData = {
+		total_amount: Number(amount),
+		currency: "BDT",
+		tran_id: tranId,
+		success_url: `${config.backend_url}/api/v1/payments/success`,
+		fail_url: `${config.backend_url}/api/v1/payments/fail`,
+		cancel_url: `${config.backend_url}/api/v1/payments/cancel`,
+		ipn_url: `${config.backend_url}/api/v1/payments/ipn`,
+		shipping_method: "NO",
+		product_name: request.title,
+		product_category: "Service Request Fee",
+		product_profile: "general",
+		cus_name: request.citizen.citizenProfile?.fullName ?? "Nagar Sheba Citizen",
+		cus_email: request.citizen.email,
+		cus_add1: request.citizen.citizenProfile?.address ?? "N/A",
+		cus_city: "Chattogram",
+		cus_postcode: "4000",
+		cus_country: "Bangladesh",
+		cus_phone: request.citizen.citizenProfile?.phone ?? "01700000000",
+	};
+
+	// const apiResponse = await sslcz.init(initData);
+	const apiResponse = await sslcz.init(initData);
+
+if (apiResponse.status !== "SUCCESS" || !apiResponse.GatewayPageURL) {
+    throw new AppError(
+        httpStatus.BAD_GATEWAY,
+        `Failed to initiate SSLCommerz session: ${
+            apiResponse.failedreason ?? "unknown error"
+        }`,
+    );
+}
+
+	return apiResponse.GatewayPageURL as string;
 };
 
 // INITIATE / RECREATE PAYMENT SESSION (API-28)
-// Payment.requestId is @unique in the schema, so there is at most ONE
-// Payment row per request ever — "recreate" means updating that same row's
-// providerRef, not inserting a new one. This is also what gives us the
-// §10 duplicate-payment-prevention rule for free.
+// Payment.requestId is still @unique, so this is the same "at most one
+// Payment row per request" guarantee as before.
 
 const initiatePaymentSession = async (requestId: string, actorId: string) => {
 	const request = await prisma.serviceRequest.findUnique({
 		where: { id: requestId },
-		include: { payment: true },
+		include: {
+			payment: true,
+			citizen: { select: { email: true, citizenProfile: true } },
+		},
 	});
 
 	if (!request || request.deletedAt) {
@@ -77,111 +108,88 @@ const initiatePaymentSession = async (requestId: string, actorId: string) => {
 	}
 
 	if (!request.feeCharged || Number(request.feeCharged) <= 0) {
-		throw new AppError(httpStatus.BAD_REQUEST, "This request has no payable fee amount");
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			"This request has no payable fee amount",
+		);
 	}
 
+	if (request.payment?.status === PaymentStatus.COMPLETED) {
+		throw new AppError(
+			httpStatus.CONFLICT,
+			"This request has already been paid for",
+		);
+	}
+
+	const tranId = buildTranId(request.id);
+	const gatewayUrl = await createSSLCommerzSession(
+		request,
+		request.feeCharged,
+		tranId,
+	);
+
 	if (request.payment) {
-		if (request.payment.status === PaymentStatus.COMPLETED) {
-			throw new AppError(httpStatus.CONFLICT, "This request has already been paid for");
-		}
-
-		// Still PENDING: reuse the existing Stripe session if it hasn't expired.
-		if (request.payment.status === PaymentStatus.PENDING) {
-			const existingSession = await stripeClient.checkout.sessions.retrieve(
-				request.payment.providerRef,
-			);
-
-			if (existingSession.status === "open" && existingSession.url) {
-				return { paymentId: request.payment.id, checkoutUrl: existingSession.url };
-			}
-			// expired — fall through and issue a fresh session below
-		}
-
-		const session = await createStripeCheckoutSession(request, request.feeCharged);
-
 		const updated = await prisma.payment.update({
 			where: { id: request.payment.id },
 			data: {
-				providerRef: session.id,
+				providerRef: tranId,
 				status: PaymentStatus.PENDING,
 				amount: request.feeCharged,
+				provider: PaymentProvider.SSLCOMMERZ,
 			},
 		});
-
-		return { paymentId: updated.id, checkoutUrl: session.url as string };
+		return { paymentId: updated.id, checkoutUrl: gatewayUrl };
 	}
-
-	// First initiate call for this request — no Payment row yet.
-	const session = await createStripeCheckoutSession(request, request.feeCharged);
 
 	const created = await prisma.payment.create({
 		data: {
 			requestId: request.id,
-			provider: PaymentProvider.STRIPE,
-			providerRef: session.id,
+			provider: PaymentProvider.SSLCOMMERZ,
+			providerRef: tranId,
 			amount: request.feeCharged,
 			status: PaymentStatus.PENDING,
 		},
 	});
 
-	return { paymentId: created.id, checkoutUrl: session.url as string };
+	return { paymentId: created.id, checkoutUrl: gatewayUrl };
 };
 
-// WEBHOOK (API-29)
-// rawBody MUST be the untouched request body Buffer — see app.ts, where
-// this route is mounted with express.raw() before the global express.json().
+// SHARED VERIFICATION — called from both the IPN and the success redirect.
+// Never trusts the posted status; always re-checks with SSLCommerz's
+// Validation API using val_id before marking anything COMPLETED.
 
-const handleStripeWebhook = async (rawBody: Buffer, signature: string) => {
-	let event: Stripe.Event;
-
-	try {
-		event = stripeClient.webhooks.constructEvent(
-			rawBody,
-			signature,
-			config.stripe.webhook_secret,
-		);
-	} catch (err) {
-		console.error("Stripe webhook signature verification failed:", err);
-		throw new AppError(httpStatus.BAD_REQUEST, "Invalid webhook signature");
-	}
-
-	if (event.type === "checkout.session.completed") {
-		await handleCheckoutCompleted(event.data.object as Stripe.Checkout.Session);
-	} else if (event.type === "checkout.session.expired") {
-		await handleCheckoutExpired(event.data.object as Stripe.Checkout.Session);
-	}
-	// Any other event type: acknowledged with 200 below, no action taken —
-	// Stripe expects a 2xx for every event it sends, or it retries forever.
-
-	return { received: true };
-};
-
-const handleCheckoutCompleted = async (session: Stripe.Checkout.Session) => {
+const verifyAndCompletePayment = async (tranId: string, valId: string) => {
 	const payment = await prisma.payment.findUnique({
-		where: { providerRef: session.id },
+		where: { providerRef: tranId },
 		include: { request: true },
 	});
 
 	if (!payment) {
-		// Unknown providerRef: log and return 200-equivalent rather than
-		// throwing, so Stripe doesn't retry indefinitely for a session we
-		// never created (e.g. a stray event from a different integration).
-		console.error(`Webhook: no Payment found for session ${session.id}`);
+		console.error(
+			`SSLCommerz callback: no Payment found for tran_id ${tranId}`,
+		);
 		return;
 	}
 
-	// Idempotency (§10 / FR-017): duplicate callback on an already-COMPLETED
-	// payment is a no-op.
+	// Idempotency: duplicate IPN + success-redirect firing for the same
+	// payment (which happens routinely) is a no-op after the first.
 	if (payment.status === PaymentStatus.COMPLETED) {
 		return;
 	}
 
-	// Amount validation (§10): never silently accept a mismatch.
-	const expectedUnitAmount = Math.round(Number(payment.amount) * 100);
+	const sslcz = createSSLCommerzInstance();
+	const validation = await sslcz.validate({ val_id: valId });
 
-	if (session.amount_total !== expectedUnitAmount) {
+	const isValid =
+		validation.status === "VALID" || validation.status === "VALIDATED";
+	const amountMatches =
+		Number(validation.amount) === Number(payment.amount) &&
+		validation.currency === "BDT";
+
+	if (!isValid || !amountMatches) {
 		console.error(
-			`Webhook: amount mismatch for payment ${payment.id} — expected ${expectedUnitAmount}, got ${session.amount_total}`,
+			`SSLCommerz validation failed for payment ${payment.id}`,
+			validation,
 		);
 		await prisma.payment.update({
 			where: { id: payment.id },
@@ -190,49 +198,90 @@ const handleCheckoutCompleted = async (session: Stripe.Checkout.Session) => {
 		return;
 	}
 
-	const request = payment.request;
-
-	// Payment status + ServiceRequest status change atomically (§10).
 	await prisma.$transaction([
 		prisma.payment.update({
 			where: { id: payment.id },
 			data: { status: PaymentStatus.COMPLETED, paidAt: new Date() },
 		}),
 		prisma.serviceRequest.update({
-			where: { id: request.id },
+			where: { id: payment.requestId },
 			data: { status: RequestStatus.SUBMITTED },
 		}),
 		prisma.statusHistory.create({
 			data: {
-				requestId: request.id,
+				requestId: payment.requestId,
 				fromStatus: RequestStatus.PENDING_PAYMENT,
 				toStatus: RequestStatus.SUBMITTED,
-				changedBy: request.citizenId,
-				note: "Payment verified via webhook",
+				changedBy: payment.request.citizenId,
+				note: "Payment verified via SSLCommerz IPN",
 			},
 		}),
 	]);
-
-	// TODO (Module G): send the payment-receipt email here — same
-	// transport + ejs pattern already used in auth.service.ts.
 };
 
-const handleCheckoutExpired = async (session: Stripe.Checkout.Session) => {
-	const payment = await prisma.payment.findUnique({ where: { providerRef: session.id } });
+const markFailedIfPending = async (tranId: string) => {
+	const payment = await prisma.payment.findUnique({
+		where: { providerRef: tranId },
+	});
+	if (payment && payment.status === PaymentStatus.PENDING) {
+		await prisma.payment.update({
+			where: { id: payment.id },
+			data: { status: PaymentStatus.FAILED },
+		});
+	}
+};
 
-	if (!payment || payment.status !== PaymentStatus.PENDING) {
-		return; // already handled, or not ours — no-op
+// IPN (API-29 equivalent) — server-to-server, this is the source of truth.
+
+const handleIPN = async (body: Record<string, string>) => {
+	const { tran_id, val_id, status } = body;
+
+	if (!tran_id) {
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			"Missing tran_id in IPN payload",
+		);
 	}
 
-	await prisma.payment.update({
-		where: { id: payment.id },
-		data: { status: PaymentStatus.FAILED },
-	});
-	// ServiceRequest is left at PENDING_PAYMENT — re-payable via API-28.
+	if (status !== "VALID" && status !== "VALIDATED") {
+		await markFailedIfPending(tran_id);
+		return { received: true };
+	}
+
+	if (!val_id) {
+		throw new AppError(httpStatus.BAD_REQUEST, "Missing val_id in IPN payload");
+	}
+
+	await verifyAndCompletePayment(tran_id, val_id);
+	return { received: true };
+};
+
+// Browser redirect handlers — SSLCommerz POSTs here from the customer's
+// browser right after checkout. These just re-run the same verification
+// (cheap, idempotent) and bounce the citizen to the frontend; the IPN
+// above already does the authoritative work in most cases.
+
+const handleSuccessRedirect = async (body: Record<string, string>) => {
+	const { tran_id, val_id } = body;
+	if (tran_id && val_id) await verifyAndCompletePayment(tran_id, val_id);
+	return `${config.frontend_url}/payments/success?tran_id=${tran_id ?? ""}`;
+};
+
+const handleFailRedirect = async (body: Record<string, string>) => {
+	const { tran_id } = body;
+	if (tran_id) await markFailedIfPending(tran_id);
+	return `${config.frontend_url}/payments/fail?tran_id=${tran_id ?? ""}`;
+};
+
+const handleCancelRedirect = async (body: Record<string, string>) => {
+	const { tran_id } = body;
+	if (tran_id) await markFailedIfPending(tran_id);
+	return `${config.frontend_url}/payments/cancel?tran_id=${tran_id ?? ""}`;
 };
 
 // REFUND (FR-019) — called from request.service.ts's cancelServiceRequest.
-// Returns null (no-op) if there's nothing eligible to refund.
+// SSLCommerz refunds need the bank_tran_id, which we didn't store on the
+// Payment row, so we look it up via the Transaction Query API first.
 
 const refundPaymentForRequest = async (requestId: string) => {
 	const payment = await prisma.payment.findUnique({ where: { requestId } });
@@ -241,20 +290,37 @@ const refundPaymentForRequest = async (requestId: string) => {
 		return null;
 	}
 
-	const session = await stripeClient.checkout.sessions.retrieve(payment.providerRef);
+	const sslcz = createSSLCommerzInstance();
 
-	if (!session.payment_intent) {
+	const txnQuery = await sslcz.transactionQueryByTransactionId({
+    tran_id: payment.providerRef,
+});
+
+const record = txnQuery?.element?.[0];
+
+	if (!record?.bank_tran_id) {
 		throw new AppError(
 			httpStatus.INTERNAL_SERVER_ERROR,
-			"No payment intent found for this session — cannot process refund",
+			"Could not locate the bank transaction id for this payment — cannot process refund",
 		);
 	}
 
-	// Payment moves COMPLETED -> REFUNDED only after the provider confirms
-	// the refund (§10) — we only update our row once this call succeeds.
-	await stripeClient.refunds.create({
-		payment_intent: session.payment_intent as string,
-	});
+	const refundResponse = await sslcz.initiateRefund({
+    refund_amount: Number(payment.amount),
+    refund_remarks: "Citizen cancelled service request",
+    bank_tran_id: record.bank_tran_id,
+    refe_id: payment.id,
+});
+
+	if (
+		refundResponse.status !== "success" &&
+		refundResponse.status !== "processing"
+	) {
+		throw new AppError(
+			httpStatus.BAD_GATEWAY,
+			`SSLCommerz refund failed: ${refundResponse.errorReason ?? "unknown error"}`,
+		);
+	}
 
 	return prisma.payment.update({
 		where: { id: payment.id },
@@ -262,13 +328,15 @@ const refundPaymentForRequest = async (requestId: string) => {
 	});
 };
 
-// GET SINGLE PAYMENT (API-30)
+// GET SINGLE PAYMENT (API-30) — provider-agnostic, unchanged from before
 
 const getSinglePayment = async (paymentId: string, actor: IRequestUser) => {
 	const payment = await prisma.payment.findUnique({
 		where: { id: paymentId },
 		include: {
-			request: { select: { id: true, citizenId: true, trackingRef: true, title: true } },
+			request: {
+				select: { id: true, citizenId: true, trackingRef: true, title: true },
+			},
 		},
 	});
 
@@ -277,27 +345,42 @@ const getSinglePayment = async (paymentId: string, actor: IRequestUser) => {
 	}
 
 	if (actor.role === Role.STAFF) {
-		throw new AppError(httpStatus.FORBIDDEN, "You do not have permission to view payments");
+		throw new AppError(
+			httpStatus.FORBIDDEN,
+			"You do not have permission to view payments",
+		);
 	}
 
-	if (actor.role === Role.CITIZEN && payment.request.citizenId !== actor.userId) {
-		throw new AppError(httpStatus.FORBIDDEN, "You do not have permission to view this payment");
+	if (
+		actor.role === Role.CITIZEN &&
+		payment.request.citizenId !== actor.userId
+	) {
+		throw new AppError(
+			httpStatus.FORBIDDEN,
+			"You do not have permission to view this payment",
+		);
 	}
 
 	return payment;
 };
 
-// LIST PAYMENTS (API-31)
+// LIST PAYMENTS (API-31) — unchanged from before
 
 const ALLOWED_PAYMENT_SORT_FIELDS = ["createdAt", "amount", "status"];
 
 const getAllPayments = async (query: IPaymentQuery, actor: IRequestUser) => {
 	if (actor.role === Role.STAFF) {
-		throw new AppError(httpStatus.FORBIDDEN, "You do not have permission to view payments");
+		throw new AppError(
+			httpStatus.FORBIDDEN,
+			"You do not have permission to view payments",
+		);
 	}
 
 	const page = Number(query.page) > 0 ? Number(query.page) : 1;
-	const limit = Math.min(Number(query.limit) > 0 ? Number(query.limit) : 10, 100);
+	const limit = Math.min(
+		Number(query.limit) > 0 ? Number(query.limit) : 10,
+		100,
+	);
 	const skip = (page - 1) * limit;
 
 	const sortBy = ALLOWED_PAYMENT_SORT_FIELDS.includes(query.sortBy as string)
@@ -306,7 +389,9 @@ const getAllPayments = async (query: IPaymentQuery, actor: IRequestUser) => {
 	const sortOrder = query.sortOrder === "asc" ? "asc" : "desc";
 
 	const where: Prisma.PaymentWhereInput = {
-		...(actor.role === Role.CITIZEN ? { request: { citizenId: actor.userId } } : {}),
+		...(actor.role === Role.CITIZEN
+			? { request: { citizenId: actor.userId } }
+			: {}),
 		...(query.status ? { status: query.status as PaymentStatus } : {}),
 		...(query.provider ? { provider: query.provider as PaymentProvider } : {}),
 	};
@@ -317,7 +402,9 @@ const getAllPayments = async (query: IPaymentQuery, actor: IRequestUser) => {
 			skip,
 			take: limit,
 			orderBy: { [sortBy]: sortOrder },
-			include: { request: { select: { id: true, trackingRef: true, title: true } } },
+			include: {
+				request: { select: { id: true, trackingRef: true, title: true } },
+			},
 		}),
 		prisma.payment.count({ where }),
 	]);
@@ -330,7 +417,10 @@ const getAllPayments = async (query: IPaymentQuery, actor: IRequestUser) => {
 
 export const PaymentService = {
 	initiatePaymentSession,
-	handleStripeWebhook,
+	handleIPN,
+	handleSuccessRedirect,
+	handleFailRedirect,
+	handleCancelRedirect,
 	refundPaymentForRequest,
 	getSinglePayment,
 	getAllPayments,

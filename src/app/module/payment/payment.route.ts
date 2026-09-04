@@ -7,9 +7,13 @@ import { paymentValidationSchemas } from "./payment.validation";
 
 const router = Router();
 
-// NOTE: the webhook (API-29) is NOT registered here — it's mounted
-// directly in app.ts, before express.json(), since Stripe's signature
-// check needs the raw body. See app.ts.
+// SSLCommerz callback endpoints — these are NOT behind auth(), since the
+// caller is SSLCommerz's server (IPN) or the citizen's browser mid-redirect
+// (success/fail/cancel), neither of which carries a Bearer token.
+router.post("/ipn", PaymentController.handleIPN);
+router.post("/success", PaymentController.handleSuccess);
+router.post("/fail", PaymentController.handleFail);
+router.post("/cancel", PaymentController.handleCancel);
 
 router.post(
 	"/initiate",

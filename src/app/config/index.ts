@@ -7,7 +7,7 @@ export default {
 	node_env: process.env.NODE_ENV,
 	port: process.env.PORT,
 	database_url: process.env.DATABASE_URL,
-	bak_url: process.env.APP_URL,
+	backend_url: process.env.BACKEND_URL,
 	frontend_url: process.env.FRONTEND_URL,
 	bcrypt_salt_rounds: Number(process.env.BCRYPT_SALT_ROUNDS),
 	jwt_access_secret: process.env.JWT_ACCESS_SECRET!,
@@ -36,9 +36,10 @@ export default {
 		api_key: process.env.CLOUDINARY_API_KEY!,
 		api_secret: process.env.CLOUDINARY_API_SECRET!,
 	},
-	stripe: { 
-		secret_key: process.env.STRIPE_SECRET_KEY!,
-		webhook_secret: process.env.STRIPE_WEBHOOK_SECRET!,
-		currency: process.env.STRIPE_CURRENCY || "usd",
+	sslcommerz: {
+		store_id: process.env.SSLCOMMERZ_STORE_ID!,
+		store_password: process.env.SSLCOMMERZ_STORE_PASSWORD!,
+		is_live: process.env.SSLCOMMERZ_IS_LIVE === "true",
 	},
 };
+// 3IrYXeU9NDsrkmIMZfnLGaHmtFL_52QgR1pcjs97BM25JxiJU

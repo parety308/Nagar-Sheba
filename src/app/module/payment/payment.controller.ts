@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import httpStatus from "http-status";
-import { AppError } from "../../errors/AppError";
 import { catchAsync } from "../../utils/catchAsync";
 import { sendResponse } from "../../utils/sendResponse";
 import { IRequestUser } from "../auth/auth.interface";
@@ -8,8 +7,10 @@ import { PaymentService } from "./payment.service";
 
 const initiatePayment = catchAsync(async (req: Request, res: Response) => {
 	const actor = req.user as IRequestUser;
-
-	const result = await PaymentService.initiatePaymentSession(req.body.requestId, actor.userId);
+	const result = await PaymentService.initiatePaymentSession(
+		req.body.requestId,
+		actor.userId,
+	);
 
 	sendResponse(res, {
 		statusCode: httpStatus.CREATED,
@@ -19,25 +20,36 @@ const initiatePayment = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
-const handleWebhook = catchAsync(async (req: Request, res: Response) => {
-	const signature = req.headers["stripe-signature"];
+// SSLCommerz posts application/x-www-form-urlencoded here — the global
+// express.urlencoded() in app.ts already parses it, no raw-body handling
+// needed like Stripe's signature check required.
 
-	if (!signature || typeof signature !== "string") {
-		throw new AppError(httpStatus.BAD_REQUEST, "Missing Stripe signature header");
-	}
-
-	// req.body is a raw Buffer here — this route is mounted with
-	// express.raw() in app.ts, BEFORE express.json(), because Stripe's
-	// signature check needs the untouched body.
-	const result = await PaymentService.handleStripeWebhook(req.body as Buffer, signature);
-
+const handleIPN = catchAsync(async (req: Request, res: Response) => {
+	const result = await PaymentService.handleIPN(req.body);
 	res.status(httpStatus.OK).json(result);
+});
+
+const handleSuccess = catchAsync(async (req: Request, res: Response) => {
+	const redirectUrl = await PaymentService.handleSuccessRedirect(req.body);
+	res.redirect(redirectUrl);
+});
+
+const handleFail = catchAsync(async (req: Request, res: Response) => {
+	const redirectUrl = await PaymentService.handleFailRedirect(req.body);
+	res.redirect(redirectUrl);
+});
+
+const handleCancel = catchAsync(async (req: Request, res: Response) => {
+	const redirectUrl = await PaymentService.handleCancelRedirect(req.body);
+	res.redirect(redirectUrl);
 });
 
 const getSinglePayment = catchAsync(async (req: Request, res: Response) => {
 	const actor = req.user as IRequestUser;
-
-	const result = await PaymentService.getSinglePayment(req.params.id as string, actor);
+	const result = await PaymentService.getSinglePayment(
+		req.params.id as string,
+		actor,
+	);
 
 	sendResponse(res, {
 		statusCode: httpStatus.OK,
@@ -49,7 +61,6 @@ const getSinglePayment = catchAsync(async (req: Request, res: Response) => {
 
 const getAllPayments = catchAsync(async (req: Request, res: Response) => {
 	const actor = req.user as IRequestUser;
-
 	const result = await PaymentService.getAllPayments(
 		{
 			page: Number(req.query.page),
@@ -73,7 +84,10 @@ const getAllPayments = catchAsync(async (req: Request, res: Response) => {
 
 export const PaymentController = {
 	initiatePayment,
-	handleWebhook,
+	handleIPN,
+	handleSuccess,
+	handleFail,
+	handleCancel,
 	getSinglePayment,
 	getAllPayments,
 };

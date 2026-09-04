@@ -9,9 +9,9 @@ import { AdminRoutes } from "./app/module/admin/admin.route";
 import { AuthRoutes } from "./app/module/auth/auth.route";
 import { CategoryRoutes } from "./app/module/category/category.route";
 import { DepartmentRoutes } from "./app/module/department/department.route";
-import { RequestRoutes } from "./app/module/request/request.route";
 import { PaymentController } from "./app/module/payment/payment.controller";
 import { PaymentRoutes } from "./app/module/payment/payment.route";
+import { RequestRoutes } from "./app/module/request/request.route";
 
 const app: Application = express();
 
@@ -22,13 +22,7 @@ app.use(
 	}),
 );
 
-app.post(
-	"/api/v1/payments/webhook",
-	express.raw({ type: "application/json" }),
-	PaymentController.handleWebhook,
-);
 app.use(express.urlencoded({ extended: true }));
-
 app.use(express.json());
 app.use(cookieParser());
 
@@ -37,7 +31,7 @@ app.use("/api/v1/departments", DepartmentRoutes);
 app.use("/api/v1/categories", CategoryRoutes);
 app.use("/api/v1/requests", RequestRoutes);
 app.use("/api/v1/admin", AdminRoutes);
-app.use("/api/v1/payments", PaymentRoutes); 
+app.use("/api/v1/payments", PaymentRoutes);
 
 app.get("/", async (req: Request, res: Response) => {
 	res.status(httpStatus.OK).json({

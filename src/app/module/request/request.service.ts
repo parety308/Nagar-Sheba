@@ -11,6 +11,7 @@ import { AppError } from "../../errors/AppError";
 import { prisma } from "../../lib/prisma";
 import { uploadBufferToCloudinary } from "../../utils/uploadToCloudinary";
 import { IRequestUser } from "../auth/auth.interface";
+import { PaymentService } from "../payment/payment.service";
 import {
 	IAddAttachmentPayload,
 	ICreateServiceRequestServicePayload,
@@ -19,7 +20,6 @@ import {
 	IRequestQuery,
 	IUpdateStatusPayload,
 } from "./request.interface";
-import { PaymentService } from "../payment/payment.service";
 
 const generateTrackingRef = async () => {
 	const year = new Date().getFullYear();
@@ -134,7 +134,6 @@ const createServiceRequest = async (
 		: null;
 
 	return { ...fullRequest, paymentSession };
-
 };
 
 const ALLOWED_SORT_FIELDS = [
