@@ -1,4 +1,3 @@
-import app from "./app";
 import config from "./app/config";
 import { runRequestLifecycleJob } from "./app/jobs/requestLifecycle.job";
 import { transport } from "./app/lib/nodemailer";
@@ -13,12 +12,20 @@ const main = async () => {
 		await prisma.$connect();
 		console.log("Connected to the database successfully.");
 
-		await redisClient.connect();
+		if (!redisClient.isOpen) {
+			await redisClient.connect();
+		}
 		console.log("Connected to Redis successfully.");
 
+		// Redis must be connected BEFORE app.ts is imported,
+		// because rate-limit-redis initializes during app import.
+		const { default: app } = await import("./app");
+
 		await seed();
+
 		await transport.verify();
 		console.log("Nodemailer Connected Successfully");
+
 		app.listen(PORT, () => {
 			console.log(`Server is running on port ${PORT}`);
 		});
