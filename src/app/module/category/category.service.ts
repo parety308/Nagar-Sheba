@@ -138,8 +138,7 @@ const updateCategory = async (
 		throw new AppError(httpStatus.NOT_FOUND, "Category not found");
 	}
 
-	// Re-validate fee consistency against the EXISTING record, since the
-	// request body may only be touching one of feeType/feeAmount.
+
 	const nextFeeType = payload.feeType ?? category.feeType;
 	const nextFeeAmount =
 		nextFeeType === "FREE" ? null : (payload.feeAmount ?? category.feeAmount);

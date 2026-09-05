@@ -6,8 +6,7 @@ import { prisma } from "../../lib/prisma";
 import { IRequestUser } from "../auth/auth.interface";
 import { ICreateFeedbackPayload, IFeedbackQuery } from "./feedback.interface";
 
-// Only a resolved/closed request that belongs to the citizen, with no
-// existing feedback yet (Feedback.requestId is @unique), can be reviewed.
+
 const ELIGIBLE_STATUSES: RequestStatus[] = [
 	RequestStatus.RESOLVED,
 	RequestStatus.CLOSED,

@@ -16,9 +16,6 @@ const main = async () => {
     await redisClient.connect();
     console.log("Connected to Redis successfully.");
 
-    // Import app ONLY after Redis is ready — app.ts builds
-    // Redis-backed rate limiters at import time (RedisStore.init()
-    // runs synchronously, not lazily on first request).
     const { default: app } = await import("./app");
 
     await seed();

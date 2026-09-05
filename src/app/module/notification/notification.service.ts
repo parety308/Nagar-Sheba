@@ -6,9 +6,7 @@ import {
 	INotificationQuery,
 } from "./notification.interface";
 
-// Best-effort fire-and-forget notification creator.
-// Never throws — a failed notification must NEVER roll back or block
-// the business transaction that triggered it (status change, payment, etc).
+
 const notifyUser = async (payload: ICreateNotificationPayload) => {
 	try {
 		await prisma.notification.create({

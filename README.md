@@ -2,6 +2,8 @@
 
 > A backend-only RESTful API that lets citizens report civic issues (potholes, water leakage, garbage collection, licensing requests, etc.), routes them to the right city department, tracks them through a full status lifecycle, and handles paid service fees through real payment gateways.
 
+🔗 **Live API:** [https://nagar-sheba-backend.onrender.com](https://nagar-sheba-backend.onrender.com/)
+
 ---
 
 ## 📖 Table of Contents
@@ -42,7 +44,7 @@ City residents currently report civic issues (road damage, water leaks, waste co
 | Payments | SSLCommerz, bKash (Tokenized Checkout) |
 | Security | Helmet, express-rate-limit, cookie-parser, CORS |
 | Code Quality | Biome (lint + format) |
-| Deployment | Vercel Serverless / Render |
+| Deployment | **Render** (live) |
 
 ---
 
@@ -113,6 +115,8 @@ All list-heavy tables carry indexes on their most-queried columns (`status`, `ci
 
 Base path: `/api/v1`. All protected routes require `Authorization: Bearer <accessToken>` (falls back to an httpOnly cookie).
 
+**Live base URL:** `https://nagar-sheba-backend.onrender.com/api/v1`
+
 ### Auth (`/auth`)
 | Method | Endpoint | Access |
 |---|---|---|
@@ -165,6 +169,7 @@ Base path: `/api/v1`. All protected routes require `Authorization: Bearer <acces
 | POST | `/initiate` | Citizen — creates/recreates a checkout session |
 | GET | `/:id` | Authenticated — scoped |
 | GET | `/` | Authenticated — paginated, filterable, sortable |
+| PATCH | `/:id/refund` | Admin — manual refund retry |
 | POST | `/sslcommerz/ipn` | Public webhook |
 | POST | `/sslcommerz/success` \| `/fail` \| `/cancel` | Public redirect handlers |
 | GET | `/bkash/callback` | Public callback |
@@ -180,13 +185,23 @@ Base path: `/api/v1`. All protected routes require `Authorization: Bearer <acces
 | Method | Endpoint | Access |
 |---|---|---|
 | POST | `/staff` | Admin — provisions STAFF/ADMIN accounts with a temp password |
+| GET | `/users` | Admin — paginated, filterable, searchable |
 | PATCH | `/users/:id/status` | Admin — block/unblock |
+| PATCH | `/users/:id/role` | Admin — change STAFF ↔ ADMIN role |
 | GET | `/audit-logs` | Admin — paginated, filterable |
 | GET | `/dashboard-stats` | Admin — user/request/payment/feedback aggregates |
 
-**45 endpoints total** — well above the 20-endpoint minimum.
+### Notifications (`/notifications`)
+| Method | Endpoint | Access |
+|---|---|---|
+| GET | `/me` | Authenticated — paginated |
+| GET | `/unread-count` | Authenticated |
+| PATCH | `/:id/read` | Authenticated |
+| PATCH | `/read-all` | Authenticated |
 
-📎 Full request/response examples: **[Postman Collection — add link here]**
+**48 endpoints total** — well above the 20-endpoint minimum.
+
+📎 Postman Collection: **`Nagar Sheba - City Complaint & Service Platform.postman_collection.json`** (included in the repo root). Import it into Postman, set the `baseUrl` collection variable to `https://nagar-sheba-backend.onrender.com` (or `http://localhost:5000` locally), then run **Login** or **Verify Email** to obtain an access token.
 
 ---
 
@@ -290,6 +305,8 @@ All variables required by `src/app/config/index.ts`. See `.env.example` for the 
 
 > ⚠️ If any of these values are ever pasted somewhere public (chat, issue tracker, etc.), rotate them immediately.
 
+On Render, `BACKEND_URL` is set to `https://nagar-sheba-backend.onrender.com` so that SSLCommerz/bKash callback URLs and cookie settings resolve correctly in production.
+
 ---
 
 ## 💳 Payment Integration
@@ -299,7 +316,7 @@ All variables required by `src/app/config/index.ts`. See `.env.example` for the 
 - **SSLCommerz**: verified via IPN webhook *and* the success/fail/cancel redirect handlers (idempotent — both paths call the same `verifySSLCommerzAndComplete`, which re-validates the transaction with SSLCommerz and checks the amount before marking it complete).
 - **bKash**: a single callback endpoint differentiates success/failure/cancel by query param, then calls `executePayment` and cross-checks `transactionStatus` and amount before completing.
 - On successful verification, `Payment.status → COMPLETED` and `ServiceRequest.status → SUBMITTED` are updated **in the same transaction**, with a `StatusHistory` row recorded.
-- Cancelling a request that was already paid triggers an automatic refund attempt (`refundPaymentForRequest`) via the same provider, without blocking the cancellation itself if the refund call fails.
+- Cancelling a request that was already paid triggers an automatic refund attempt (`refundPaymentForRequest`) via the same provider, without blocking the cancellation itself if the refund call fails. A failed automatic refund is recorded as a `PAYMENT_REFUND_FAILED` audit log entry, which an Admin can locate and retry via `PATCH /payments/:id/refund`.
 
 ---
 
@@ -316,10 +333,10 @@ All variables required by `src/app/config/index.ts`. See `.env.example` for the 
 - Passwords hashed with bcrypt (configurable salt rounds).
 - JWT Bearer access tokens + rotating refresh tokens (httpOnly cookies as a fallback transport).
 - Role-based middleware re-validates the user against the database on every request (rejects blocked/deleted accounts even with a still-valid token).
-- `helmet` for security headers, `cors` locked to `FRONTEND_URL`, global + endpoint-specific (`otpLimiter`) rate limiting.
+- `helmet` for security headers, `cors` locked to `FRONTEND_URL`, global + endpoint-specific (`otpLimiter`, `loginLimiter`) rate limiting, backed by Redis so limits are shared across serverless instances.
 - Centralized error handler normalizes Prisma, Multer, Zod, and generic errors into the standard error response shape without leaking internals in production.
 
 ---
 
 
-> ⚠️ Use dedicated demo credentials for evaluation, never real production secrets.
+> ⚠️ Use dedicated demo credentials for evaluation, never real production secrets. If the demo admin credentials above are ever exposed publicly, rotate `ADMIN_PASSWORD` in the Render environment settings and restart the service.

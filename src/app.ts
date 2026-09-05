@@ -21,11 +21,8 @@ import { RequestRoutes } from "./app/module/request/request.route";
 
 const app: Application = express();
 
-// Security headers
 app.use(helmet());
 
-// App-wide rate limiter — Redis-backed so the limit is shared across
-// serverless invocations/instances instead of resetting per cold start.
 app.use(
 	rateLimit({
 		windowMs: 15 * 60 * 1000,

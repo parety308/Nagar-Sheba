@@ -79,7 +79,6 @@ const ForgotPasswordZodSchema = z.object({
 	email: z.email("Please provide a valid email address."),
 });
 
-// RESET PASSWORD
 
 // REFRESH TOKEN
 

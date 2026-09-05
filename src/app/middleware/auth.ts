@@ -7,7 +7,6 @@ import { prisma } from "../lib/prisma";
 import { catchAsync } from "../utils/catchAsync";
 import { jwtUtils } from "../utils/jwt";
 
-// Express Request type augmentation
 
 declare global {
 	namespace Express {
@@ -22,7 +21,7 @@ declare global {
 	}
 }
 
-// JWT Access Token Payload
+
 
 type TAccessTokenPayload = {
 	userId: string;
@@ -33,13 +32,12 @@ type TAccessTokenPayload = {
 export const auth = (...requiredRoles: Role[]) => {
 	return catchAsync(
 		async (req: Request, _res: Response, next: NextFunction) => {
-			// 1. Get access token
+			
 
 			const authHeader = req.headers.authorization;
 
 			let token: string | undefined;
 
-			// Authorization: Bearer <token>
 			if (authHeader) {
 				if (authHeader.startsWith("Bearer ")) {
 					token = authHeader.substring(7).trim();
@@ -48,7 +46,7 @@ export const auth = (...requiredRoles: Role[]) => {
 				}
 			}
 
-			// Fallback: Cookie
+
 			if (!token) {
 				token = req.cookies?.accessToken;
 			}
@@ -60,7 +58,6 @@ export const auth = (...requiredRoles: Role[]) => {
 				);
 			}
 
-			// 2. Verify JWT
 
 			const verifiedToken = jwtUtils.verifyToken(
 				token,
@@ -79,7 +76,7 @@ export const auth = (...requiredRoles: Role[]) => {
 
 			const { userId, email, role } = payload;
 
-			// 3. Validate JWT payload
+
 
 			if (!userId || !email || !role) {
 				throw new AppError(
@@ -88,7 +85,7 @@ export const auth = (...requiredRoles: Role[]) => {
 				);
 			}
 
-			// 4. Role authorization
+		
 
 			if (requiredRoles.length > 0 && !requiredRoles.includes(role)) {
 				throw new AppError(
@@ -97,7 +94,7 @@ export const auth = (...requiredRoles: Role[]) => {
 				);
 			}
 
-			// 5. Get current user from database
+
 
 			const user = await prisma.user.findUnique({
 				where: { id: userId },
@@ -108,7 +105,6 @@ export const auth = (...requiredRoles: Role[]) => {
 				},
 			});
 
-			// User doesn't exist
 			if (!user) {
 				throw new AppError(
 					httpStatus.UNAUTHORIZED,
@@ -116,9 +112,7 @@ export const auth = (...requiredRoles: Role[]) => {
 				);
 			}
 
-			// 6. Account status checks
-
-			// Soft deleted user
+	
 			if (user.deletedAt) {
 				throw new AppError(
 					httpStatus.UNAUTHORIZED,
@@ -126,7 +120,6 @@ export const auth = (...requiredRoles: Role[]) => {
 				);
 			}
 
-			// Blocked user
 			if (user.status === "BLOCKED") {
 				throw new AppError(
 					httpStatus.FORBIDDEN,
@@ -134,7 +127,6 @@ export const auth = (...requiredRoles: Role[]) => {
 				);
 			}
 
-			// 7. Verify JWT identity against database
 
 			if (user.email !== email || user.role !== role) {
 				throw new AppError(
@@ -143,7 +135,7 @@ export const auth = (...requiredRoles: Role[]) => {
 				);
 			}
 
-			// 8. Attach trusted user information to request
+
 
 			req.user = {
 				name:
@@ -155,8 +147,6 @@ export const auth = (...requiredRoles: Role[]) => {
 				email: user.email,
 				role: user.role,
 			};
-
-			// 9. Continue
 
 			next();
 		},

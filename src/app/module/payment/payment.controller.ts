@@ -53,8 +53,7 @@ const handleSSLCommerzCancel = catchAsync(
 	},
 );
 
-// ---- bKash ----
-// bKash calls back with GET ?paymentID=...&status=success|failure|cancel
+
 
 const handleBkashCallback = catchAsync(async (req: Request, res: Response) => {
 	const redirectUrl = await PaymentService.handleBkashCallback({

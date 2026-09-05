@@ -437,11 +437,6 @@ const refundBkash = async (payment: {
 	}
 };
 
-// REFUND — provider-agnostic dispatcher (unchanged: refundSSLCommerz, refundBkash stay as-is)
-
-// SHARED CORE — refunds by Payment row directly. Used by both the automatic
-// cancel-flow path (refundPaymentForRequest) and the manual Admin retry
-// endpoint (manualRefundPayment).
 
 const executeRefund = async (
 	payment: {
@@ -508,8 +503,7 @@ const executeRefund = async (
 	return updated;
 };
 
-// AUTOMATIC PATH — called from request.service.ts on citizen cancellation.
-// Silently no-ops if there's no COMPLETED payment (nothing to refund).
+
 
 const refundPaymentForRequest = async (requestId: string, actorId: string) => {
 	const payment = await prisma.payment.findUnique({ where: { requestId } });
@@ -521,10 +515,7 @@ const refundPaymentForRequest = async (requestId: string, actorId: string) => {
 	return executeRefund(payment, actorId);
 };
 
-// MANUAL ADMIN PATH — explicit retry/trigger for a specific payment.
-// Distinct from the automatic path in that it throws (rather than
-// swallowing) so the Admin sees exactly why a refund didn't go through,
-// and it records the Admin's reason on the audit trail.
+
 
 const manualRefundPayment = async (
 	paymentId: string,
@@ -568,9 +559,6 @@ const manualRefundPayment = async (
 
 	const updated = await executeRefund(payment, actor.userId);
 
-	// Record the Admin's stated reason as a follow-up audit entry, kept
-	// separate from PAYMENT_REFUNDED so the automated and manual paths
-	// share one clean success-event shape.
 	if (payload.reason) {
 		await prisma.auditLog.create({
 			data: {

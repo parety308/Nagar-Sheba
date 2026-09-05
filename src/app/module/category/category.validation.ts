@@ -41,10 +41,7 @@ const CreateCategoryZodSchema = z
 		},
 	);
 
-// UPDATE CATEGORY
-// Cross-field checks here only cover fields present in THIS request body.
-// The service layer re-validates feeType/feeAmount consistency against the
-// existing DB record, since a partial update might only touch one of the two.
+
 
 const UpdateCategoryZodSchema = z
 	.object({

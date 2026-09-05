@@ -143,8 +143,7 @@ const createServiceRequest = async (
 				`Failed to initiate payment session for request ${created.id}:`,
 				error,
 			);
-			// Request still exists as PENDING_PAYMENT; citizen can retry via
-			// POST /api/v1/payments/initiate with the same requestId.
+			
 		}
 	}
 
@@ -366,15 +365,11 @@ const cancelServiceRequest = async (id: string, citizenId: string) => {
 		}),
 	]);
 
-	// Cancellation is already committed above — a refund-gateway failure must
-	// NOT be surfaced as a failed cancellation to the citizen.
 	try {
 		await PaymentService.refundPaymentForRequest(id, citizenId);
 	} catch (error) {
 		console.error(`Refund failed for cancelled request ${id}:`, error);
-		// The PAYMENT_REFUND_FAILED audit log entry (written inside
-		// refundPaymentForRequest) is now the durable record an Admin can
-		// use to find and manually retry this — see gap #4.
+	
 	}
 	return updated;
 };
