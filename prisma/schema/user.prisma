@@ -15,19 +15,19 @@ model User {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  // 1:1 role profiles — exactly one of these is populated, based on `role`
+
   citizenProfile CitizenProfile?
   staffProfile   StaffProfile?
   adminProfile   AdminProfile?
 
-  // Relations as a Citizen
+
   requestsSubmitted ServiceRequest[] @relation("RequestCitizen")
   feedbacks         Feedback[]
 
-  // Relations as Staff (assignee)
+
   requestsAssigned ServiceRequest[] @relation("RequestAssignedStaff")
 
-  // Cross-role relations
+
   statusChangesMade   StatusHistory[] @relation("StatusChangedBy")
   attachmentsUploaded Attachment[]    @relation("AttachmentUploadedBy")
   notifications       Notification[]

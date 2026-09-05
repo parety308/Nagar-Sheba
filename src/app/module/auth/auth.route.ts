@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { auth } from "../../middleware/auth";
-import { otpLimiter } from "../../middleware/rateLimiter";
+import { loginLimiter, otpLimiter } from "../../middleware/rateLimiter";
 import { upload } from "../../middleware/upload";
 import { validateRequestBody } from "../../middleware/validateRequest";
 import { AuthController } from "./auth.controller";
@@ -29,6 +29,7 @@ router.post(
 
 router.post(
 	"/login",
+	loginLimiter,
 	validateRequestBody(authValidationSchemas.LoginUserZodSchema),
 	AuthController.loginUser,
 );

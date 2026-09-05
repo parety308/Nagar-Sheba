@@ -4,8 +4,10 @@ import express, { Application, Request, Response } from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import httpStatus from "http-status";
+import { RedisStore } from "rate-limit-redis";
 
 import config from "./app/config";
+import { redisClient } from "./app/lib/redis";
 import { globalErrorHandler } from "./app/middleware/globalErrorHandler";
 import { notFound } from "./app/middleware/notFound";
 import { AdminRoutes } from "./app/module/admin/admin.route";
@@ -22,13 +24,18 @@ const app: Application = express();
 // Security headers
 app.use(helmet());
 
-// App-wide rate limiter
+// App-wide rate limiter — Redis-backed so the limit is shared across
+// serverless invocations/instances instead of resetting per cold start.
 app.use(
 	rateLimit({
 		windowMs: 15 * 60 * 1000,
 		max: 300,
 		standardHeaders: true,
 		legacyHeaders: false,
+		store: new RedisStore({
+			sendCommand: (...args: string[]) => redisClient.sendCommand(args),
+			prefix: "rl:global:",
+		}),
 	}),
 );
 

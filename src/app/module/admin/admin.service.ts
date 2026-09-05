@@ -362,7 +362,7 @@ const updateUserRole = async (
 							staffProfile: {
 								create: {
 									departmentId: resolvedDepartmentId as string,
-									fullName: payload.title ? fullName : fullName,
+									fullName,
 									title: payload.title,
 								},
 							},

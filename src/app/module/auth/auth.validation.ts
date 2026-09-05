@@ -83,13 +83,12 @@ const ForgotPasswordZodSchema = z.object({
 
 // REFRESH TOKEN
 
-// Use this only if refreshToken comes through req.body
 const RefreshTokenZodSchema = z.object({
 	refreshToken: z
 		.string("Refresh token is required")
-		.min(1, "Refresh token is required"),
+		.min(1, "Refresh token is required")
+		.optional(),
 });
-
 // RESET PASSWORD
 
 const ResetPasswordZodSchema = z.object({

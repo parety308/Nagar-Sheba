@@ -124,20 +124,22 @@ const getMe = catchAsync(async (req: Request, res: Response) => {
 });
 
 const refreshToken = catchAsync(async (req: Request, res: Response) => {
-	const token = req.cookies.refreshToken;
+	// Prefer the httpOnly cookie (browser flow); fall back to body
+	// for clients that can't use cookies (Postman, mobile apps, etc).
+	const token = req.cookies?.refreshToken || req.body?.refreshToken;
 
 	if (!token) {
-		throw new AppError(httpStatus.UNAUTHORIZED, "Refresh token is missing");
+		throw new AppError(
+			httpStatus.UNAUTHORIZED,
+			"Refresh token is missing. Provide it via cookie or request body.",
+		);
 	}
 
 	const result = await AuthService.refreshToken(token);
 
 	const { accessToken, refreshToken: newRefreshToken } = result;
 
-	// Set new access token
 	res.cookie("accessToken", accessToken, accessTokenCookieOptions);
-
-	// Rotate refresh token
 	res.cookie("refreshToken", newRefreshToken, refreshTokenCookieOptions);
 
 	sendResponse(res, {
