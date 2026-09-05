@@ -1,4 +1,4 @@
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { RedisStore } from "rate-limit-redis";
 import { redisClient } from "../lib/redis";
 
@@ -45,7 +45,7 @@ export const loginLimiter = rateLimit({
 	// office/NAT IP with several legitimate users isn't punished as a unit
 	// on top of per-account brute-force protection.
 	keyGenerator: (req) =>
-		req.body?.email?.toLowerCase?.() || req.ip || "unknown",
+    req.body?.email?.toLowerCase?.() || ipKeyGenerator(req.ip ?? "unknown"),
 	message: {
 		success: false,
 		message: "Too many login attempts. Please try again in 15 minutes.",

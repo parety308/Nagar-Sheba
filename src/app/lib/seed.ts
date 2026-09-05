@@ -122,9 +122,10 @@ const STAFF = [
 export const seed = async (): Promise<void> => {
 	console.log(" Starting Nagar-Sheba database seed...");
 
-	await prisma.$transaction(async (tx) => {
-		// 1. Departments
+	const tx = prisma; // no longer wrapped in an interactive transaction
 
+	{
+		// 1. Departments
 		const departmentIdByName = new Map<string, string>();
 
 		for (const department of DEPARTMENTS) {
@@ -240,7 +241,7 @@ export const seed = async (): Promise<void> => {
 				},
 			});
 		}
-	});
+	};
 
 	console.log(
 		` Nagar-Sheba seed completed successfully. ` +
