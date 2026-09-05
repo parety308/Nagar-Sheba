@@ -24,6 +24,7 @@ export default {
 		password: process.env.REDIS_PASSWORD!,
 		host: process.env.REDIS_HOST!,
 		port: Number(process.env.REDIS_PORT),
+		url: process.env.REDIS_URL!
 	},
 	staff_password: process.env.STAFF_PASSWORD!,
 	smtp: {
