@@ -1,4 +1,4 @@
-import app from "./app";
+
 import config from "./app/config";
 import { runRequestLifecycleJob } from "./app/jobs/requestLifecycle.job";
 import { transport } from "./app/lib/nodemailer";
@@ -9,41 +9,37 @@ import { seed } from "./app/lib/seed";
 const PORT = config.port;
 
 const main = async () => {
-	try {
-		await prisma.$connect();
-		console.log("Connected to the database successfully.");
+  try {
+    await prisma.$connect();
+    console.log("Connected to the database successfully.");
 
-		await redisClient.connect();
-		console.log("Connected to Redis successfully.");
+    await redisClient.connect();
+    console.log("Connected to Redis successfully.");
 
-		await seed();
+    // Import app ONLY after Redis is ready — app.ts builds
+    // Redis-backed rate limiters at import time (RedisStore.init()
+    // runs synchronously, not lazily on first request).
+    const { default: app } = await import("./app");
 
-		// Email verification should never block server startup —
-		// if SMTP is unreachable, log it and keep going; mail sends
-		// will simply fail individually later instead of taking down the API.
-		transport
-			.verify()
-			.then(() => console.log("Nodemailer Connected Successfully"))
-			.catch((err) =>
-				console.error("Nodemailer verification failed (continuing anyway):", err.message),
-			);
+    await seed();
 
-		app.listen(PORT, () => {
-			console.log(`Server is running on port ${PORT}`);
-		});
+    transport
+      .verify()
+      .then(() => console.log("Nodemailer Connected Successfully"))
+      .catch((err) =>
+        console.error("Nodemailer verification failed (continuing anyway):", err.message),
+      );
 
-		runRequestLifecycleJob();
-		setInterval(runRequestLifecycleJob, 15 * 60 * 1000);
-	} catch (error) {
-		console.error("Error starting the server:", error);
+    app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
 
-		if (redisClient.isOpen) {
-			await redisClient.quit();
-		}
-
-		await prisma.$disconnect();
-		process.exit(1);
-	}
+    runRequestLifecycleJob();
+    setInterval(runRequestLifecycleJob, 15 * 60 * 1000);
+  } catch (error) {
+    console.error("Error starting the server:", error);
+    if (redisClient.isOpen) await redisClient.quit();
+    await prisma.$disconnect();
+    process.exit(1);
+  }
 };
 
 main();
