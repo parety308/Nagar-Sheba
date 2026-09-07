@@ -26,7 +26,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"fullName\": \"Yesrat Jahan\",\n  \"email\": \"etyyesratjahan@gmail.com\",\n  \"password\": \"Password@123\",\n  \"phone\": \"01712345678\",\n  \"address\": \"Dhaka, Bangladesh\"\n}",
+							"raw": "{\n  \"fullName\": \"Md Parvez Hasan\",\n  \"email\": \"md.parvez.hasan.dev@gmail.com\",\n  \"password\": \"Password@123\",\n  \"phone\": \"01712345678\",\n  \"address\": \"Dhaka, Bangladesh\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -34,12 +34,10 @@
 							}
 						},
 						"url": {
-							"raw": "http://localhost:5000/api/v1/auth/register",
-							"protocol": "http",
+							"raw": "{{baseUrl}}/api/v1/auth/register",
 							"host": [
-								"localhost"
+								"{{baseUrl}}"
 							],
-							"port": "5000",
 							"path": [
 								"api",
 								"v1",
@@ -65,7 +63,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"email\": \"etyyesratjahan@gmail.com\",\n  \"otp\": \"440353\"\n}",
+							"raw": "{\n  \"email\": \"md.parvez.hasan.dev@gmail.com\",\n  \"otp\": \"110924\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -102,7 +100,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"email\": \"etyyesratjahan@gmail.com\",\n  \"password\": \"Password@123\"\n}",
+							"raw": "{\n  \"email\": \"etyyesratjahan@gmail.com\",\n  \"password\": \"NewPass@123\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -176,7 +174,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"email\": \"parvezbalia2205@gmail.com\"\n}",
+							"raw": "{\n  \"email\": \"md.parvez.hasan.dev@gmail.com\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -213,7 +211,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"email\": \"parvezbalia2205@gmail.com\",\n  \"otp\": \"592603\",\n  \"newPassword\": \"NewPass@123\"\n}",
+							"raw": "{\n  \"email\": \"md.parvez.hasan.dev@gmail.com\",\n  \"otp\": \"869955\",\n  \"newPassword\": \"NewPass@1234\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -267,7 +265,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"fullName\": \"Yesrat Jahan Ety\",\n  \"phone\": \"017760701872\",\n  \"address\": \"Chattogram, Bangladesh\"\n}",
+							"raw": "{\n  \"fullName\": \"Hasan\",\n  \"phone\": \"01876097788\",\n  \"address\": \"Coxs Bazar, Bangladesh\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -683,7 +681,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"categoryId\": \"22c3ffd2-8732-41d9-b0f9-f040758ff9d3\",\n  \"title\": \"Trade licence renewal request\",\n  \"description\": \"I would like to renew my existing trade licence. Please process my renewal request and let me know if any additional documents are required.\",\n  \"address\": \"Agrabad, Chattogram\",\n  \"latitude\": 22.3245,\n  \"longitude\": 91.8116\n}",
+							"raw": "{\n  \"categoryId\": \"0d09b1d4-c1f3-4eaa-adb6-3d5b17d5478a\",\n  \"title\": \"Trade licence renewal request\",\n  \"description\": \"I would like to renew my existing trade licence. Please process my renewal request and let me know if any additional documents are required.\",\n  \"address\": \"Agrabad, Chattogram\",\n  \"latitude\": 22.3245,\n  \"longitude\": 91.8116\n}",
 							"options": {
 								"raw": {
 									"language": "json"
