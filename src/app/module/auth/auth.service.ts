@@ -37,9 +37,7 @@ import {
 const registerUser = async (payload: IRegisterUserPayload) => {
 	const { fullName, email: rawEmail, password, phone, address } = payload;
 
-
 	const email = rawEmail.trim().toLowerCase();
-
 
 	const existingUser = await prisma.user.findUnique({
 		where: {
@@ -54,10 +52,8 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 		);
 	}
 
-
 	const passwordHash = await bcrypt.hash(password, config.bcrypt_salt_rounds);
 
-	
 	const redisPayload: IRegistrationRedisPayload = {
 		fullName,
 		email,
@@ -66,14 +62,11 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 		address,
 	};
 
-
 	const otpValue = crypto.randomInt(100000, 1000000);
-
 
 	const otpKey = `citizen-registration-otp:${email}`;
 	const registrationDataKey = `registration-data:${email}`;
 
-	
 	await redisClient.set(otpKey, otpValue.toString(), {
 		expiration: {
 			type: "EX",
@@ -81,7 +74,6 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 		},
 	});
 
-	
 	await redisClient.set(registrationDataKey, JSON.stringify(redisPayload), {
 		expiration: {
 			type: "EX",
@@ -89,12 +81,10 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 		},
 	});
 
-	
 	const templatePath = path.join(
 		process.cwd(),
 		"src/app/templates/registration-otp.ejs",
 	);
-
 
 	const html = await ejs.renderFile(templatePath, {
 		name: fullName,
@@ -102,7 +92,6 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 		otpValue,
 		expirationMinutes: 5,
 	});
-
 
 	await transport.sendMail({
 		from: config.smtp.sender,
@@ -118,7 +107,6 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 };
 
 const verifyRegistrationEmail = async (payload: IRegistrationVerifyPayload) => {
-	
 	const email = payload.email.trim().toLowerCase();
 
 	const otp = payload.otp.trim();
@@ -129,11 +117,9 @@ const verifyRegistrationEmail = async (payload: IRegistrationVerifyPayload) => {
 		},
 	});
 
-
 	if (existingUser?.isEmailVerified) {
 		throw new AppError(httpStatus.BAD_REQUEST, "Email is already verified");
 	}
-
 
 	if (existingUser?.status === "BLOCKED") {
 		throw new AppError(httpStatus.FORBIDDEN, "User is blocked");
@@ -141,9 +127,7 @@ const verifyRegistrationEmail = async (payload: IRegistrationVerifyPayload) => {
 
 	const otpKey = `citizen-registration-otp:${email}`;
 
-
 	const redisOTP = await redisClient.get(otpKey);
-
 
 	if (!redisOTP) {
 		throw new AppError(
@@ -160,7 +144,6 @@ const verifyRegistrationEmail = async (payload: IRegistrationVerifyPayload) => {
 	}
 
 	const registrationDataKey = `registration-data:${email}`;
-
 
 	const registrationData = await redisClient.get(registrationDataKey);
 
@@ -182,14 +165,12 @@ const verifyRegistrationEmail = async (payload: IRegistrationVerifyPayload) => {
 		address,
 	} = registrationPayload;
 
-
 	if (registrationEmail !== email) {
 		throw new AppError(
 			httpStatus.BAD_REQUEST,
 			"Registration email does not match.",
 		);
 	}
-
 
 	const createdUser = await prisma.user.create({
 		data: {
@@ -198,7 +179,6 @@ const verifyRegistrationEmail = async (payload: IRegistrationVerifyPayload) => {
 
 			role: Role.CITIZEN,
 			status: AccountStatus.ACTIVE,
-
 
 			isEmailVerified: true,
 
@@ -218,7 +198,6 @@ const verifyRegistrationEmail = async (payload: IRegistrationVerifyPayload) => {
 		},
 	});
 
-
 	const jwtPayload = {
 		userId: createdUser.id,
 		name: createdUser.citizenProfile?.fullName,
@@ -237,7 +216,6 @@ const verifyRegistrationEmail = async (payload: IRegistrationVerifyPayload) => {
 		config.jwt_refresh_secret,
 		config.jwt_refresh_expires_in as SignOptions,
 	);
-
 
 	await redisClient.del(otpKey);
 	await redisClient.del(registrationDataKey);
@@ -259,7 +237,6 @@ const verifyRegistrationEmail = async (payload: IRegistrationVerifyPayload) => {
 		html,
 	});
 
-
 	const { passwordHash: _, ...safeUser } = createdUser;
 
 	return {
@@ -274,8 +251,6 @@ const loginUser = async (payload: ILoginUserPayload) => {
 	const { password } = payload;
 
 	const email = payload.email.trim().toLowerCase();
-
-
 
 	const user = await prisma.user.findUnique({
 		where: {
@@ -296,16 +271,13 @@ const loginUser = async (payload: ILoginUserPayload) => {
 		);
 	}
 
-	
 	if (user.deletedAt) {
 		throw new AppError(httpStatus.FORBIDDEN, "Your account has been deleted.");
 	}
 
-
 	if (user.status === AccountStatus.BLOCKED) {
 		throw new AppError(httpStatus.FORBIDDEN, "User account is blocked");
 	}
-
 
 	if (!user.passwordHash) {
 		throw new AppError(
@@ -320,22 +292,17 @@ const loginUser = async (payload: ILoginUserPayload) => {
 		throw new AppError(httpStatus.UNAUTHORIZED, "Invalid credentials");
 	}
 
-
-
 	const jwtPayload = {
 		userId: user.id,
 		email: user.email,
 		role: user.role,
 	};
 
-
-
 	const accessToken = jwtUtils.createToken(
 		jwtPayload,
 		config.jwt_access_secret,
 		config.jwt_access_expires_in as SignOptions,
 	);
-
 
 	const refreshToken = jwtUtils.createToken(
 		jwtPayload,
@@ -368,18 +335,13 @@ const getMe = async (user: IRequestUser) => {
 		},
 	});
 
-
-
 	if (!currentUser) {
 		throw new AppError(httpStatus.NOT_FOUND, "User not found");
 	}
 
-
 	if (currentUser.status === AccountStatus.BLOCKED) {
 		throw new AppError(httpStatus.FORBIDDEN, "User account is blocked");
 	}
-
-
 
 	const { passwordHash: _, ...safeUser } = currentUser;
 
@@ -389,8 +351,6 @@ const getMe = async (user: IRequestUser) => {
 // REFRESH TOKEN
 
 const refreshToken = async (token: string) => {
-	
-
 	const verifiedRefreshToken = jwtUtils.verifyToken(
 		token,
 		config.jwt_refresh_secret,
@@ -428,11 +388,9 @@ const refreshToken = async (token: string) => {
 		throw new AppError(httpStatus.FORBIDDEN, "Your account has been deleted.");
 	}
 
-
 	if (user.status === AccountStatus.BLOCKED) {
 		throw new AppError(httpStatus.FORBIDDEN, "User account is blocked");
 	}
-
 
 	const jwtPayload = {
 		userId: user.id,
@@ -440,14 +398,11 @@ const refreshToken = async (token: string) => {
 		role: user.role,
 	};
 
-
-
 	const accessToken = jwtUtils.createToken(
 		jwtPayload,
 		config.jwt_access_secret,
 		config.jwt_access_expires_in as SignOptions,
 	);
-
 
 	const newRefreshToken = jwtUtils.createToken(
 		jwtPayload,
@@ -466,7 +421,6 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 	let googleIdTokenPayload: TokenPayload | null | undefined = null;
 
 	try {
-	
 		const ticket = await googleClient.verifyIdToken({
 			idToken: payload.idToken,
 			audience: config.google_client_id,
@@ -499,7 +453,6 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 		});
 
 		if (user) {
-
 			if (user.role !== Role.CITIZEN) {
 				throw new AppError(
 					httpStatus.FORBIDDEN,
@@ -507,11 +460,10 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 				);
 			}
 
-	
 			if (user.status === AccountStatus.BLOCKED) {
 				throw new AppError(httpStatus.FORBIDDEN, "User is Blocked");
 			}
-			
+
 			if (!user.googleId) {
 				user = await prisma.user.update({
 					where: {
@@ -527,7 +479,6 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 				});
 			}
 		} else {
-		
 			user = await prisma.user.create({
 				data: {
 					email: googleIdTokenPayload.email,
@@ -547,7 +498,6 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 			});
 		}
 
-	
 		const jwtPayload = {
 			userId: user.id,
 			name: user.citizenProfile?.fullName,
@@ -561,7 +511,6 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 			config.jwt_access_expires_in as SignOptions,
 		);
 
-	
 		const refreshToken = jwtUtils.createToken(
 			jwtPayload,
 			config.jwt_refresh_secret,
@@ -581,7 +530,6 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 
 const forgotPassword = async (payload: IForgotPasswordPayload) => {
 	const email = payload.email.trim().toLowerCase();
-
 
 	const existingUser = await prisma.user.findUnique({
 		where: {
@@ -603,7 +551,6 @@ const forgotPassword = async (payload: IForgotPasswordPayload) => {
 		);
 	}
 
-
 	if (existingUser.authProvider !== AuthProvider.CREDENTIAL) {
 		throw new AppError(
 			httpStatus.BAD_REQUEST,
@@ -618,10 +565,8 @@ const forgotPassword = async (payload: IForgotPasswordPayload) => {
 		);
 	}
 
-
 	const otp = crypto.randomInt(100000, 1000000);
 
-	
 	const key = `forgot-password:${email}`;
 
 	await redisClient.set(key, otp.toString(), {
@@ -667,14 +612,12 @@ const resetPassword = async (payload: IResetPasswordPayload) => {
 		);
 	}
 
-	
 	if (existingUser.status === AccountStatus.BLOCKED) {
 		throw new AppError(
 			httpStatus.FORBIDDEN,
 			"Your account has been blocked. Please contact support for assistance.",
 		);
 	}
-
 
 	if (existingUser.authProvider !== AuthProvider.CREDENTIAL) {
 		throw new AppError(
@@ -683,7 +626,6 @@ const resetPassword = async (payload: IResetPasswordPayload) => {
 		);
 	}
 
-	
 	if (!existingUser.isEmailVerified) {
 		throw new AppError(
 			httpStatus.BAD_REQUEST,
@@ -691,7 +633,6 @@ const resetPassword = async (payload: IResetPasswordPayload) => {
 		);
 	}
 
-	
 	const key = `forgot-password:${email}`;
 
 	const storedOtp = await redisClient.get(key);
@@ -702,19 +643,18 @@ const resetPassword = async (payload: IResetPasswordPayload) => {
 			"OTP has expired or does not exist. Please request a new OTP.",
 		);
 	}
-	
+
 	if (storedOtp !== otp) {
 		throw new AppError(
 			httpStatus.BAD_REQUEST,
 			"Invalid OTP. Please enter the correct OTP.",
 		);
 	}
-	
+
 	const hashedPassword = await bcrypt.hash(
 		newPassword,
 		config.bcrypt_salt_rounds,
 	);
-
 
 	await prisma.user.update({
 		where: {
@@ -725,10 +665,8 @@ const resetPassword = async (payload: IResetPasswordPayload) => {
 		},
 	});
 
-	
 	await redisClient.del(key);
 
-	
 	const templatePath = path.join(
 		process.cwd(),
 		"src/app/templates/reset.password.ejs",

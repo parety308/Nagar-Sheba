@@ -41,8 +41,6 @@ const CreateCategoryZodSchema = z
 		},
 	);
 
-
-
 const UpdateCategoryZodSchema = z
 	.object({
 		name: z

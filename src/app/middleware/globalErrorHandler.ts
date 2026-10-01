@@ -5,6 +5,7 @@ import { Prisma } from "../../generated/prisma/client";
 import config from "../config";
 import { AppError } from "../errors/AppError";
 
+const isDev = config.node_env === "development";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const globalErrorHandler = async (
 	err: any,
@@ -12,15 +13,15 @@ export const globalErrorHandler = async (
 	res: Response,
 	_next: NextFunction,
 ) => {
-	if (config.node_env === "development") {
+	if (config.node_env === "development" && !(err instanceof AppError)) {
 		console.log("Error from Global Error Handler:", err);
 	}
 
-	let statusCode: Number = httpStatus.INTERNAL_SERVER_ERROR;
+	let statusCode: number = httpStatus.INTERNAL_SERVER_ERROR;
 	let errorMessage = "Internal Server Error";
 	let errorName = "Internal Server Error";
 	let errorMessages: { path: string; message: string }[] = [];
-
+	const expose = isDev || statusCode < 500;
 	// App Error
 	if (err instanceof AppError) {
 		statusCode = err.statusCode;
@@ -88,17 +89,13 @@ export const globalErrorHandler = async (
 		errorName = err.name;
 	}
 
-	res.status(statusCode as number).json({
+	res.status(statusCode).json({
 		success: false,
 		statusCode,
-		name:
-			config.node_env === "development" ? errorName : "Internal Server Error",
-		message:
-			config.node_env === "development"
-				? errorMessage
-				: "Internal Server Error",
+		name: expose ? errorName : "Internal Server Error",
+		message: expose ? errorMessage : "Internal Server Error",
 		errors: errorMessages,
-		error: config.node_env === "development" ? err : undefined,
-		stack: config.node_env === "development" ? err.stack : undefined,
+		error: isDev ? err : undefined,
+		stack: isDev ? err.stack : undefined,
 	});
 };

@@ -241,7 +241,37 @@ export const seed = async (): Promise<void> => {
 				},
 			});
 		}
-	};
+
+		// 5. Demo citizen
+		const citizenHash = await bcrypt.hash(
+			config.demo_citizen.password,
+			SALT_ROUNDS,
+		);
+
+		await tx.user.upsert({
+			where: { email: config.demo_citizen.email },
+			update: {
+				passwordHash: citizenHash,
+				role: Role.CITIZEN,
+				status: AccountStatus.ACTIVE,
+				isEmailVerified: true,
+			},
+			create: {
+				email: config.demo_citizen.email,
+				passwordHash: citizenHash,
+				role: Role.CITIZEN,
+				status: AccountStatus.ACTIVE,
+				isEmailVerified: true,
+				citizenProfile: {
+					create: {
+						fullName: "Demo Citizen",
+						phone: "01700000001",
+						address: "Agrabad, Chattogram",
+					},
+				},
+			},
+		});
+	}
 
 	console.log(
 		` Nagar-Sheba seed completed successfully. ` +

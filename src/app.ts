@@ -17,10 +17,11 @@ import { DepartmentRoutes } from "./app/module/department/department.route";
 import { FeedbackRoutes } from "./app/module/feedback/feedback.route";
 import { NotificationRoutes } from "./app/module/notification/notification.route";
 import { PaymentRoutes } from "./app/module/payment/payment.route";
+import { PublicRoutes } from "./app/module/public/public.route";
 import { RequestRoutes } from "./app/module/request/request.route";
 
 const app: Application = express();
-
+app.set("trust proxy", 1);
 app.use(helmet());
 
 app.use(
@@ -55,7 +56,7 @@ app.use("/api/v1/admin", AdminRoutes);
 app.use("/api/v1/payments", PaymentRoutes);
 app.use("/api/v1/feedbacks", FeedbackRoutes);
 app.use("/api/v1/notifications", NotificationRoutes);
-
+app.use("/api/v1/public", PublicRoutes);
 app.get("/", async (req: Request, res: Response) => {
 	res.status(httpStatus.OK).json({
 		success: true,

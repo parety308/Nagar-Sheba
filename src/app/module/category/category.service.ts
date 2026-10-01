@@ -138,7 +138,6 @@ const updateCategory = async (
 		throw new AppError(httpStatus.NOT_FOUND, "Category not found");
 	}
 
-
 	const nextFeeType = payload.feeType ?? category.feeType;
 	const nextFeeAmount =
 		nextFeeType === "FREE" ? null : (payload.feeAmount ?? category.feeAmount);

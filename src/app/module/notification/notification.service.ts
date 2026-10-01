@@ -6,7 +6,6 @@ import {
 	INotificationQuery,
 } from "./notification.interface";
 
-
 const notifyUser = async (payload: ICreateNotificationPayload) => {
 	try {
 		await prisma.notification.create({

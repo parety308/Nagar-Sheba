@@ -1,14 +1,14 @@
 import { Router } from "express";
 import { Role } from "../../../generated/prisma/enums";
-import { auth } from "../../middleware/auth";
+import { auth, optionalAuth } from "../../middleware/auth";
 import { validateRequestBody } from "../../middleware/validateRequest";
 import { DepartmentController } from "./department.controller";
 import { departmentValidationSchemas } from "./department.validation";
 
 const router = Router();
 
-router.get("/", auth(), DepartmentController.getAllDepartments);
-router.get("/:id", auth(), DepartmentController.getSingleDepartment);
+router.get("/", optionalAuth, DepartmentController.getAllDepartments);
+router.get("/:id", optionalAuth, DepartmentController.getSingleDepartment);
 
 // admin only writes
 router.post(

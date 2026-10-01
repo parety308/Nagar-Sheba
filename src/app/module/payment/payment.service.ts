@@ -15,6 +15,9 @@ import { IRequestUser } from "../auth/auth.interface";
 import { NotificationService } from "../notification/notification.service";
 import { IPaymentQuery, TRequestForPayment } from "./payment.interface";
 
+
+const FRONTEND = (config.frontend_url ?? "").replace(/\/$/, "");
+
 const buildTranId = (requestId: string) =>
 	`NS-${requestId.slice(0, 8)}-${Date.now()}`;
 
@@ -437,7 +440,6 @@ const refundBkash = async (payment: {
 	}
 };
 
-
 const executeRefund = async (
 	payment: {
 		id: string;
@@ -503,8 +505,6 @@ const executeRefund = async (
 	return updated;
 };
 
-
-
 const refundPaymentForRequest = async (requestId: string, actorId: string) => {
 	const payment = await prisma.payment.findUnique({ where: { requestId } });
 
@@ -514,8 +514,6 @@ const refundPaymentForRequest = async (requestId: string, actorId: string) => {
 
 	return executeRefund(payment, actorId);
 };
-
-
 
 const manualRefundPayment = async (
 	paymentId: string,

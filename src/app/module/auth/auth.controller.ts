@@ -8,18 +8,21 @@ import { AuthService } from "./auth.service";
 import { authValidationSchemas } from "./auth.validation";
 
 const isProd = process.env.NODE_ENV === "production";
-const accessTokenCookieOptions = {
+
+const baseCookieOptions = {
 	httpOnly: true,
 	secure: isProd,
 	sameSite: (isProd ? "none" : "lax") as "none" | "lax",
+};
+
+const accessTokenCookieOptions = {
+	...baseCookieOptions,
 	maxAge: 1000 * 60 * 60 * 24,
 };
 
 const refreshTokenCookieOptions = {
-	httpOnly: true,
-	secure: process.env.NODE_ENV === "production",
-	sameSite: "none" as const,
-	maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+	...baseCookieOptions,
+	maxAge: 1000 * 60 * 60 * 24 * 7,
 };
 
 const registerUser = catchAsync(async (req: Request, res: Response) => {
@@ -154,19 +157,8 @@ const refreshToken = catchAsync(async (req: Request, res: Response) => {
 });
 
 const logoutUser = catchAsync(async (req: Request, res: Response) => {
-	// Clear authentication cookies
-	res.clearCookie("accessToken", {
-		httpOnly: true,
-		secure: process.env.NODE_ENV === "production",
-		sameSite: "none" as const,
-	});
-
-	res.clearCookie("refreshToken", {
-		httpOnly: true,
-		secure: process.env.NODE_ENV === "production",
-		sameSite: "none" as const,
-	});
-
+	res.clearCookie("accessToken", baseCookieOptions);
+	res.clearCookie("refreshToken", baseCookieOptions);
 	sendResponse(res, {
 		statusCode: httpStatus.OK,
 		success: true,

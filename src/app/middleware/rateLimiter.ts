@@ -2,14 +2,11 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { RedisStore } from "rate-limit-redis";
 import { redisClient } from "../lib/redis";
 
-
 const createRedisStore = (prefix: string) =>
 	new RedisStore({
-		
 		sendCommand: (...args: string[]) => redisClient.sendCommand(args),
 		prefix,
 	});
-
 
 export const otpLimiter = rateLimit({
 	windowMs: 15 * 60 * 1000,
@@ -32,10 +29,23 @@ export const loginLimiter = rateLimit({
 	store: createRedisStore("rl:login:"),
 
 	keyGenerator: (req) =>
-    req.body?.email?.toLowerCase?.() || ipKeyGenerator(req.ip ?? "unknown"),
+		req.body?.email?.toLowerCase?.() || ipKeyGenerator(req.ip ?? "unknown"),
 	message: {
 		success: false,
 		message: "Too many login attempts. Please try again in 15 minutes.",
+		errors: [],
+	},
+});
+
+export const contactLimiter = rateLimit({
+	windowMs: 15 * 60 * 1000,
+	max: 5,
+	standardHeaders: true,
+	legacyHeaders: false,
+	store: createRedisStore("rl:contact:"),
+	message: {
+		success: false,
+		message: "Too many messages. Please try again later.",
 		errors: [],
 	},
 });

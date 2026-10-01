@@ -7,7 +7,6 @@ import { prisma } from "../lib/prisma";
 import { catchAsync } from "../utils/catchAsync";
 import { jwtUtils } from "../utils/jwt";
 
-
 declare global {
 	namespace Express {
 		interface Request {
@@ -21,8 +20,6 @@ declare global {
 	}
 }
 
-
-
 type TAccessTokenPayload = {
 	userId: string;
 	email: string;
@@ -32,8 +29,6 @@ type TAccessTokenPayload = {
 export const auth = (...requiredRoles: Role[]) => {
 	return catchAsync(
 		async (req: Request, _res: Response, next: NextFunction) => {
-			
-
 			const authHeader = req.headers.authorization;
 
 			let token: string | undefined;
@@ -46,7 +41,6 @@ export const auth = (...requiredRoles: Role[]) => {
 				}
 			}
 
-
 			if (!token) {
 				token = req.cookies?.accessToken;
 			}
@@ -57,7 +51,6 @@ export const auth = (...requiredRoles: Role[]) => {
 					"You are not logged in. Please log in to access this resource.",
 				);
 			}
-
 
 			const verifiedToken = jwtUtils.verifyToken(
 				token,
@@ -76,8 +69,6 @@ export const auth = (...requiredRoles: Role[]) => {
 
 			const { userId, email, role } = payload;
 
-
-
 			if (!userId || !email || !role) {
 				throw new AppError(
 					httpStatus.UNAUTHORIZED,
@@ -85,16 +76,12 @@ export const auth = (...requiredRoles: Role[]) => {
 				);
 			}
 
-		
-
 			if (requiredRoles.length > 0 && !requiredRoles.includes(role)) {
 				throw new AppError(
 					httpStatus.FORBIDDEN,
 					"You do not have permission to access this resource.",
 				);
 			}
-
-
 
 			const user = await prisma.user.findUnique({
 				where: { id: userId },
@@ -112,7 +99,6 @@ export const auth = (...requiredRoles: Role[]) => {
 				);
 			}
 
-	
 			if (user.deletedAt) {
 				throw new AppError(
 					httpStatus.UNAUTHORIZED,
@@ -127,15 +113,12 @@ export const auth = (...requiredRoles: Role[]) => {
 				);
 			}
 
-
 			if (user.email !== email || user.role !== role) {
 				throw new AppError(
 					httpStatus.UNAUTHORIZED,
 					"Session is no longer valid. Please log in again.",
 				);
 			}
-
-
 
 			req.user = {
 				name:
@@ -152,3 +135,15 @@ export const auth = (...requiredRoles: Role[]) => {
 		},
 	);
 };
+
+export const optionalAuth = catchAsync(
+	async (req: Request, res: Response, next: NextFunction) => {
+		const hasToken = req.headers.authorization || req.cookies?.accessToken;
+		if (hasToken) {
+			await new Promise<void>((resolve) => {
+				auth()(req, res, () => resolve());
+			});
+		}
+		next();
+	},
+);

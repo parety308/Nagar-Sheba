@@ -24,7 +24,7 @@ export default {
 		password: process.env.REDIS_PASSWORD!,
 		host: process.env.REDIS_HOST!,
 		port: Number(process.env.REDIS_PORT),
-		url: process.env.REDIS_URL!
+		url: process.env.REDIS_URL!,
 	},
 	staff_password: process.env.STAFF_PASSWORD!,
 	smtp: {
@@ -48,5 +48,9 @@ export default {
 		password: process.env.BKASH_PASSWORD!,
 		app_key: process.env.BKASH_APP_KEY!,
 		app_secret: process.env.BKASH_APP_SECRET!,
+	},
+	demo_citizen: {
+		email: process.env.DEMO_CITIZEN_EMAIL ?? "citizen@nagar-sheba.com",
+		password: process.env.DEMO_CITIZEN_PASSWORD ?? "ChangeMe@123",
 	},
 };

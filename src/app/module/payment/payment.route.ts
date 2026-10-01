@@ -8,9 +8,9 @@ import { paymentValidationSchemas } from "./payment.validation";
 const router = Router();
 
 router.post("/sslcommerz/ipn", PaymentController.handleSSLCommerzIPN);
-router.post("/sslcommerz/success", PaymentController.handleSSLCommerzSuccess);
-router.post("/sslcommerz/fail", PaymentController.handleSSLCommerzFail);
-router.post("/sslcommerz/cancel", PaymentController.handleSSLCommerzCancel);
+router.all("/sslcommerz/success", PaymentController.handleSSLCommerzSuccess);
+router.all("/sslcommerz/fail", PaymentController.handleSSLCommerzFail);
+router.all("/sslcommerz/cancel", PaymentController.handleSSLCommerzCancel);
 
 router.post(
 	"/initiate",

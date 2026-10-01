@@ -6,7 +6,6 @@ import { prisma } from "../../lib/prisma";
 import { IRequestUser } from "../auth/auth.interface";
 import { ICreateFeedbackPayload, IFeedbackQuery } from "./feedback.interface";
 
-
 const ELIGIBLE_STATUSES: RequestStatus[] = [
 	RequestStatus.RESOLVED,
 	RequestStatus.CLOSED,

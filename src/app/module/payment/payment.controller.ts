@@ -4,6 +4,7 @@ import { catchAsync } from "../../utils/catchAsync";
 import { sendResponse } from "../../utils/sendResponse";
 import { IRequestUser } from "../auth/auth.interface";
 import { PaymentService } from "./payment.service";
+import config from "../../config";
 
 const initiatePayment = catchAsync(async (req: Request, res: Response) => {
 	const actor = req.user as IRequestUser;
@@ -28,32 +29,44 @@ const handleSSLCommerzIPN = catchAsync(async (req: Request, res: Response) => {
 	res.status(httpStatus.OK).json(result);
 });
 
-const handleSSLCommerzSuccess = catchAsync(
-	async (req: Request, res: Response) => {
-		const redirectUrl = await PaymentService.handleSSLCommerzSuccessRedirect(
-			req.body,
-		);
-		res.redirect(redirectUrl);
-	},
+
+
+const buildFallback = (outcome: "success" | "fail" | "cancel", tranId?: string) =>
+	`${config.frontend_url?.replace(/\/$/, "")}/payments/${outcome}?tran_id=${tranId ?? ""}`;
+
+const redirectHandler = (
+	outcome: "success" | "fail" | "cancel",
+	run: (body: Record<string, string>) => Promise<string>,
+) =>
+	catchAsync(async (req: Request, res: Response) => {
+		// SSLCommerz may send data in the body (POST) or the query (GET)
+		const data = { ...(req.query as Record<string, string>), ...(req.body ?? {}) };
+
+		let url: string;
+		try {
+			url = await run(data);
+		} catch (error) {
+			console.error(`SSLCommerz ${outcome} handler failed:`, error);
+			// Verification problems must not strand the user on the API domain.
+			url = buildFallback(outcome === "success" ? "fail" : outcome, data.tran_id);
+		}
+
+		// 303 forces the browser to switch the POST into a GET on the frontend
+		res.redirect(303, url);
+	});
+
+const handleSSLCommerzSuccess = redirectHandler(
+	"success",
+	PaymentService.handleSSLCommerzSuccessRedirect,
 );
-
-const handleSSLCommerzFail = catchAsync(async (req: Request, res: Response) => {
-	const redirectUrl = await PaymentService.handleSSLCommerzFailRedirect(
-		req.body,
-	);
-	res.redirect(redirectUrl);
-});
-
-const handleSSLCommerzCancel = catchAsync(
-	async (req: Request, res: Response) => {
-		const redirectUrl = await PaymentService.handleSSLCommerzCancelRedirect(
-			req.body,
-		);
-		res.redirect(redirectUrl);
-	},
+const handleSSLCommerzFail = redirectHandler(
+	"fail",
+	PaymentService.handleSSLCommerzFailRedirect,
 );
-
-
+const handleSSLCommerzCancel = redirectHandler(
+	"cancel",
+	PaymentService.handleSSLCommerzCancelRedirect,
+);
 
 const handleBkashCallback = catchAsync(async (req: Request, res: Response) => {
 	const redirectUrl = await PaymentService.handleBkashCallback({

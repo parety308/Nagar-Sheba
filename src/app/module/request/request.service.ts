@@ -143,7 +143,6 @@ const createServiceRequest = async (
 				`Failed to initiate payment session for request ${created.id}:`,
 				error,
 			);
-			
 		}
 	}
 
@@ -369,7 +368,6 @@ const cancelServiceRequest = async (id: string, citizenId: string) => {
 		await PaymentService.refundPaymentForRequest(id, citizenId);
 	} catch (error) {
 		console.error(`Refund failed for cancelled request ${id}:`, error);
-	
 	}
 	return updated;
 };

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { Role } from "../../../generated/prisma/enums";
-import { auth } from "../../middleware/auth";
+import { auth, optionalAuth } from "../../middleware/auth";
 import { validateRequestBody } from "../../middleware/validateRequest";
 import { CategoryController } from "./category.controller";
 import { categoryValidationSchemas } from "./category.validation";
@@ -8,8 +8,8 @@ import { categoryValidationSchemas } from "./category.validation";
 const router = Router();
 
 // anyone can show
-router.get("/", auth(), CategoryController.getAllCategories);
-router.get("/:id", auth(), CategoryController.getSingleCategory);
+router.get("/", optionalAuth, CategoryController.getAllCategories);
+router.get("/:id", optionalAuth, CategoryController.getSingleCategory);
 
 // Admin only Write values
 router.post(
