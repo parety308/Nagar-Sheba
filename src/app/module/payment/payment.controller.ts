@@ -1,10 +1,10 @@
 import { Request, Response } from "express";
 import httpStatus from "http-status";
+import config from "../../config";
 import { catchAsync } from "../../utils/catchAsync";
 import { sendResponse } from "../../utils/sendResponse";
 import { IRequestUser } from "../auth/auth.interface";
 import { PaymentService } from "./payment.service";
-import config from "../../config";
 
 const initiatePayment = catchAsync(async (req: Request, res: Response) => {
 	const actor = req.user as IRequestUser;
@@ -29,9 +29,10 @@ const handleSSLCommerzIPN = catchAsync(async (req: Request, res: Response) => {
 	res.status(httpStatus.OK).json(result);
 });
 
-
-
-const buildFallback = (outcome: "success" | "fail" | "cancel", tranId?: string) =>
+const buildFallback = (
+	outcome: "success" | "fail" | "cancel",
+	tranId?: string,
+) =>
 	`${config.frontend_url?.replace(/\/$/, "")}/payments/${outcome}?tran_id=${tranId ?? ""}`;
 
 const redirectHandler = (
@@ -40,7 +41,10 @@ const redirectHandler = (
 ) =>
 	catchAsync(async (req: Request, res: Response) => {
 		// SSLCommerz may send data in the body (POST) or the query (GET)
-		const data = { ...(req.query as Record<string, string>), ...(req.body ?? {}) };
+		const data = {
+			...(req.query as Record<string, string>),
+			...(req.body ?? {}),
+		};
 
 		let url: string;
 		try {
@@ -48,7 +52,10 @@ const redirectHandler = (
 		} catch (error) {
 			console.error(`SSLCommerz ${outcome} handler failed:`, error);
 			// Verification problems must not strand the user on the API domain.
-			url = buildFallback(outcome === "success" ? "fail" : outcome, data.tran_id);
+			url = buildFallback(
+				outcome === "success" ? "fail" : outcome,
+				data.tran_id,
+			);
 		}
 
 		// 303 forces the browser to switch the POST into a GET on the frontend

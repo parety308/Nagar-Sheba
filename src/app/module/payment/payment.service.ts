@@ -15,7 +15,6 @@ import { IRequestUser } from "../auth/auth.interface";
 import { NotificationService } from "../notification/notification.service";
 import { IPaymentQuery, TRequestForPayment } from "./payment.interface";
 
-
 const FRONTEND = (config.frontend_url ?? "").replace(/\/$/, "");
 
 const buildTranId = (requestId: string) =>

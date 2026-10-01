@@ -251,6 +251,18 @@ const updateMyProfile = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
+const changePassword = catchAsync(async (req: Request, res: Response) => {
+	const user = req.user as IRequestUser;
+	const result = await AuthService.changePassword(user, req.body);
+
+	sendResponse(res, {
+		statusCode: httpStatus.OK,
+		success: true,
+		message: result.message,
+		data: null,
+	});
+});
+
 export const AuthController = {
 	registerUser,
 	googleLogin,
@@ -263,4 +275,5 @@ export const AuthController = {
 	verifyCitizenEmail,
 	updateProfileImage,
 	updateMyProfile,
+	changePassword
 };

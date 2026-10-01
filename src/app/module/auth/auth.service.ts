@@ -22,6 +22,7 @@ import {
 	uploadBufferToCloudinary,
 } from "../../utils/uploadToCloudinary";
 import {
+	IChangePasswordPayload,
 	IForgotPasswordPayload,
 	IGoogleLoginPayload,
 	ILoginUserPayload,
@@ -661,8 +662,9 @@ const resetPassword = async (payload: IResetPasswordPayload) => {
 			email,
 		},
 		data: {
-			passwordHash: hashedPassword,
-		},
+	passwordHash: hashedPassword,
+	mustChangePassword: false,
+},
 	});
 
 	await redisClient.del(key);
@@ -795,6 +797,49 @@ const updateMyProfile = async (
 	return safeUser;
 };
 
+const changePassword = async (
+	user: IRequestUser,
+	payload: IChangePasswordPayload,
+) => {
+	const dbUser = await prisma.user.findUnique({ where: { id: user.userId } });
+
+	if (!dbUser) {
+		throw new AppError(httpStatus.NOT_FOUND, "User not found");
+	}
+
+	if (!dbUser.passwordHash) {
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			"This account does not use a password.",
+		);
+	}
+
+	const matches = await bcrypt.compare(
+		payload.currentPassword,
+		dbUser.passwordHash,
+	);
+
+	// 400 (not 401) so the frontend doesn't treat it as an expired session
+	if (!matches) {
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			"Current password is incorrect",
+		);
+	}
+
+	await prisma.user.update({
+		where: { id: dbUser.id },
+		data: {
+			passwordHash: await bcrypt.hash(
+				payload.newPassword,
+				config.bcrypt_salt_rounds,
+			),
+			mustChangePassword: false,
+		},
+	});
+
+	return { message: "Password changed successfully." };
+}; 
 export const AuthService = {
 	registerUser,
 	googleLogin,
@@ -806,4 +851,5 @@ export const AuthService = {
 	verifyRegistrationEmail,
 	updateProfileImage,
 	updateMyProfile,
+	changePassword
 };

@@ -21,7 +21,6 @@ export const globalErrorHandler = async (
 	let errorMessage = "Internal Server Error";
 	let errorName = "Internal Server Error";
 	let errorMessages: { path: string; message: string }[] = [];
-	const expose = isDev || statusCode < 500;
 	// App Error
 	if (err instanceof AppError) {
 		statusCode = err.statusCode;
@@ -88,6 +87,8 @@ export const globalErrorHandler = async (
 		errorMessage = err.message;
 		errorName = err.name;
 	}
+
+	const expose = isDev || statusCode < 500;
 
 	res.status(statusCode).json({
 		success: false,

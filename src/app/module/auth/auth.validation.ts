@@ -146,6 +146,18 @@ const UpdateProfileZodSchema = z
 		message: "At least one field must be provided to update.",
 	});
 
+const ChangePasswordZodSchema = z
+	.object({
+		currentPassword: z
+			.string("Current password is required")
+			.min(1, "Current password is required"),
+		newPassword: passwordSchema,
+	})
+	.refine((d) => d.currentPassword !== d.newPassword, {
+		message: "New password must be different from the current password",
+		path: ["newPassword"],
+	});
+
 export const authValidationSchemas = {
 	RegisterUserZodSchema,
 	LoginUserZodSchema,
@@ -157,4 +169,5 @@ export const authValidationSchemas = {
 	CitizenEmailVerifyZodSchema,
 	ProfileImageZodSchema,
 	UpdateProfileZodSchema,
+	ChangePasswordZodSchema,
 };

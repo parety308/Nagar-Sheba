@@ -71,4 +71,11 @@ router.patch(
 	AuthController.updateMyProfile,
 );
 
+router.post(
+	"/change-password",
+	auth(),
+	validateRequestBody(authValidationSchemas.ChangePasswordZodSchema),
+	AuthController.changePassword,
+); 
+
 export const AuthRoutes = router;

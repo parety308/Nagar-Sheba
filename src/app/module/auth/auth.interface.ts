@@ -61,3 +61,8 @@ export interface IUpdateProfilePayload {
 	address?: string;
 	title?: string;
 }
+
+export interface IChangePasswordPayload {
+	currentPassword: string;
+	newPassword: string;
+}
