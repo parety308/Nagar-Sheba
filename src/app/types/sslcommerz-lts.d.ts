@@ -25,6 +25,13 @@ declare module "sslcommerz-lts" {
 		card_type?: string;
 	}
 
+	interface SSLCommerzValidationResponse {
+	status?: string;
+	amount?: string;
+	currency?: string;
+	tran_id?: string;
+}
+
 	interface SSLCommerzTransactionQueryResponse {
 		status?: string;
 		errorReason?: string;

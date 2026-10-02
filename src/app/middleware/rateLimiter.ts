@@ -24,6 +24,7 @@ export const otpLimiter = rateLimit({
 export const loginLimiter = rateLimit({
 	windowMs: 15 * 60 * 1000,
 	max: 10,
+	skipSuccessfulRequests: true,
 	standardHeaders: true,
 	legacyHeaders: false,
 	store: createRedisStore("rl:login:"),

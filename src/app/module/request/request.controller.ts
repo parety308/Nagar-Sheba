@@ -37,6 +37,10 @@ const getAllServiceRequests = catchAsync(
 				overdue: req.query.overdue === "true",
 				sortBy: req.query.sortBy as string | undefined,
 				sortOrder: req.query.sortOrder as "asc" | "desc" | undefined,
+				assigned:
+	req.query.assigned === "me" || req.query.assigned === "unassigned"
+		? req.query.assigned
+		: undefined,
 			},
 			user,
 		);

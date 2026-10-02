@@ -587,7 +587,7 @@ const forgotPassword = async (payload: IForgotPasswordPayload) => {
 	await transport.sendMail({
 		from: config.smtp.sender,
 		to: email,
-		subject: "Forogot Password",
+		subject: "Forgot Password",
 		html,
 	});
 	return {

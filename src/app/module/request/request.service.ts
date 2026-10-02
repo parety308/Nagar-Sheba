@@ -206,6 +206,11 @@ const getAllServiceRequests = async (
 		where.departmentId = query.departmentId;
 	}
 	if (query.overdue === true) where.isOverdue = true;
+	
+	if (requester.role !== Role.CITIZEN) {
+	if (query.assigned === "me") where.assignedStaffId = requester.userId;
+	else if (query.assigned === "unassigned") where.assignedStaffId = null;
+}
 
 	const [items, total] = await Promise.all([
 		prisma.serviceRequest.findMany({

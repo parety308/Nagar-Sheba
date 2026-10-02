@@ -18,6 +18,7 @@ export interface IRequestQuery {
 	limit?: number;
 	status?: string;
 	departmentId?: string;
+	assigned?: "me" | "unassigned";
 	categoryId?: string;
 	overdue?: boolean;
 	sortBy?: string;
