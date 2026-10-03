@@ -453,10 +453,40 @@ const transitionRequestStatus = async (
 				"Request is already in the requested status",
 			);
 		}
+
+		// A request awaiting payment can only move forward
+		// through the verified payment flow.
+		if (request.status === RequestStatus.PENDING_PAYMENT) {
+			throw new AppError(
+				httpStatus.CONFLICT,
+				"A request awaiting payment can only move forward through a verified payment",
+			);
+		}
+
+		// Cancellation and payment states must not be set
+		// manually through the status transition endpoint.
+		if (
+			toStatus === RequestStatus.CANCELLED ||
+			toStatus === RequestStatus.PENDING_PAYMENT
+		) {
+			throw new AppError(
+				httpStatus.BAD_REQUEST,
+				"Cancellation and payment states cannot be set manually",
+			);
+		}
+
+		// ASSIGNED must be handled through the Reassign flow.
+		if (toStatus === RequestStatus.ASSIGNED && !request.assignedStaffId) {
+			throw new AppError(
+				httpStatus.BAD_REQUEST,
+				"Assign a staff member with Reassign instead of setting ASSIGNED manually",
+			);
+		}
 	} else {
 		throw new AppError(httpStatus.FORBIDDEN, "Not authorized for this action");
 	}
 
+	// A resolution note is mandatory when resolving a request.
 	if (toStatus === RequestStatus.RESOLVED && !payload.note?.trim()) {
 		throw new AppError(
 			httpStatus.BAD_REQUEST,
@@ -465,15 +495,26 @@ const transitionRequestStatus = async (
 	}
 
 	const now = new Date();
-	const updateData: Prisma.ServiceRequestUpdateInput = { status: toStatus };
 
+	const updateData: Prisma.ServiceRequestUpdateInput = {
+		status: toStatus,
+	};
+
+	// Start SLA timer when the request becomes ASSIGNED.
 	if (toStatus === RequestStatus.ASSIGNED && !request.slaDueAt) {
-		updateData.slaDueAt = computeSlaDueAt(now, request.category.slaHours);
+		updateData.slaDueAt = computeSlaDueAt(
+			now,
+			request.category.slaHours,
+		);
 	}
 
+	// Store resolution time and determine whether the request
+	// exceeded its SLA.
 	if (toStatus === RequestStatus.RESOLVED) {
 		updateData.resolvedAt = now;
-		updateData.isOverdue = request.slaDueAt ? now > request.slaDueAt : false;
+		updateData.isOverdue = request.slaDueAt
+			? now > request.slaDueAt
+			: false;
 	}
 
 	const operations: Prisma.PrismaPromise<any>[] = [
@@ -486,12 +527,14 @@ const transitionRequestStatus = async (
 				note: payload.note,
 			},
 		}),
+
 		prisma.serviceRequest.update({
 			where: { id: requestId },
 			data: updateData,
 		}),
 	];
 
+	// Record admin override in the audit log.
 	if (isAdminOverride) {
 		operations.push(
 			prisma.auditLog.create({
@@ -500,20 +543,28 @@ const transitionRequestStatus = async (
 					action: "REQUEST_STATUS_OVERRIDDEN",
 					entityType: "ServiceRequest",
 					entityId: request.id,
-					previousValue: { status: request.status },
-					newValue: { status: toStatus, note: payload.note },
+					previousValue: {
+						status: request.status,
+					},
+					newValue: {
+						status: toStatus,
+						note: payload.note,
+					},
 				},
 			}),
 		);
 	}
 
 	const results = await prisma.$transaction(operations);
+
+	// Notify citizen about status change.
 	NotificationService.notifyUser({
 		userId: request.citizenId,
 		type: "REQUEST_STATUS_CHANGED",
 		message: `Your request "${request.title}" status changed to ${toStatus}.`,
 	});
 
+	// Notify assigned staff when request becomes ASSIGNED.
 	if (toStatus === RequestStatus.ASSIGNED && request.assignedStaffId) {
 		NotificationService.notifyUser({
 			userId: request.assignedStaffId,
@@ -521,9 +572,9 @@ const transitionRequestStatus = async (
 			message: `You have been assigned request "${request.title}".`,
 		});
 	}
+
 	return results[1];
 };
-
 const reassignRequest = async (
 	requestId: string,
 	adminActor: IRequestUser,

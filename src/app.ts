@@ -21,13 +21,15 @@ import { PublicRoutes } from "./app/module/public/public.route";
 import { RequestRoutes } from "./app/module/request/request.route";
 
 const app: Application = express();
+
 app.set("trust proxy", 1);
+
 app.use(helmet());
 
 app.use(
 	rateLimit({
 		windowMs: 15 * 60 * 1000,
-		max: 300,
+		max: 1500,
 		standardHeaders: true,
 		legacyHeaders: false,
 		store: new RedisStore({
@@ -57,6 +59,7 @@ app.use("/api/v1/payments", PaymentRoutes);
 app.use("/api/v1/feedbacks", FeedbackRoutes);
 app.use("/api/v1/notifications", NotificationRoutes);
 app.use("/api/v1/public", PublicRoutes);
+
 app.get("/", async (req: Request, res: Response) => {
 	res.status(httpStatus.OK).json({
 		success: true,
@@ -65,6 +68,7 @@ app.get("/", async (req: Request, res: Response) => {
 });
 
 app.use(notFound);
+
 app.use(globalErrorHandler);
 
 export default app;
