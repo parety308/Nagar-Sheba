@@ -5,8 +5,8 @@
     "main": "index.js",
     "scripts": {
         "dev": "tsx watch src/server.ts",
-        "build": "tsc",
-        "start": "node dist/src/server.js",
+        "build": "prisma generate",
+        "start": "tsx src/server.ts",
         "test": "echo \"Error: no test specified\" && exit 1",
         "format:check": "npx @biomejs/biome format ./src",
         "format:fix": "npx @biomejs/biome check --write ./src",

@@ -156,16 +156,52 @@ const updateDepartment = async (
 // soft delete department
 
 const deleteDepartment = async (id: string, actor: IRequestUser) => {
-	const department = await prisma.department.findUnique({ where: { id } });
+	const department = await prisma.department.findUnique({
+		where: { id },
+	});
 
 	if (!department || department.deletedAt) {
 		throw new AppError(httpStatus.NOT_FOUND, "Department not found");
 	}
 
+	const [categories, staff, openRequests] = await Promise.all([
+		prisma.category.count({
+			where: {
+				departmentId: id,
+				deletedAt: null,
+			},
+		}),
+		prisma.staffProfile.count({
+			where: {
+				departmentId: id,
+			},
+		}),
+		prisma.serviceRequest.count({
+			where: {
+				departmentId: id,
+				deletedAt: null,
+				status: {
+					in: ["PENDING_PAYMENT", "SUBMITTED", "ASSIGNED", "IN_PROGRESS"],
+				},
+			},
+		}),
+	]);
+
+	if (categories || staff || openRequests) {
+		throw new AppError(
+			httpStatus.CONFLICT,
+			`Cannot delete: ${categories} active categories, ${staff} staff, ${openRequests} open requests still belong to this department`,
+		);
+	}
+
+	const deletedAt = new Date();
+
 	const [deleted] = await prisma.$transaction([
 		prisma.department.update({
 			where: { id },
-			data: { deletedAt: new Date() },
+			data: {
+				deletedAt,
+			},
 		}),
 		prisma.auditLog.create({
 			data: {
@@ -173,8 +209,12 @@ const deleteDepartment = async (id: string, actor: IRequestUser) => {
 				action: "DEPARTMENT_DELETED",
 				entityType: "Department",
 				entityId: id,
-				previousValue: { deletedAt: null },
-				newValue: { deletedAt: new Date() },
+				previousValue: {
+					deletedAt: null,
+				},
+				newValue: {
+					deletedAt,
+				},
 			},
 		}),
 	]);

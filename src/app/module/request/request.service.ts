@@ -206,11 +206,11 @@ const getAllServiceRequests = async (
 		where.departmentId = query.departmentId;
 	}
 	if (query.overdue === true) where.isOverdue = true;
-	
+
 	if (requester.role !== Role.CITIZEN) {
-	if (query.assigned === "me") where.assignedStaffId = requester.userId;
-	else if (query.assigned === "unassigned") where.assignedStaffId = null;
-}
+		if (query.assigned === "me") where.assignedStaffId = requester.userId;
+		else if (query.assigned === "unassigned") where.assignedStaffId = null;
+	}
 
 	const [items, total] = await Promise.all([
 		prisma.serviceRequest.findMany({
@@ -502,19 +502,14 @@ const transitionRequestStatus = async (
 
 	// Start SLA timer when the request becomes ASSIGNED.
 	if (toStatus === RequestStatus.ASSIGNED && !request.slaDueAt) {
-		updateData.slaDueAt = computeSlaDueAt(
-			now,
-			request.category.slaHours,
-		);
+		updateData.slaDueAt = computeSlaDueAt(now, request.category.slaHours);
 	}
 
 	// Store resolution time and determine whether the request
 	// exceeded its SLA.
 	if (toStatus === RequestStatus.RESOLVED) {
 		updateData.resolvedAt = now;
-		updateData.isOverdue = request.slaDueAt
-			? now > request.slaDueAt
-			: false;
+		updateData.isOverdue = request.slaDueAt ? now > request.slaDueAt : false;
 	}
 
 	const operations: Prisma.PrismaPromise<any>[] = [
@@ -743,6 +738,13 @@ const reopenRequest = async (
 ) => {
 	const request = await prisma.serviceRequest.findUnique({
 		where: { id: requestId },
+		include: {
+			category: {
+				select: {
+					slaHours: true,
+				},
+			},
+		},
 	});
 
 	if (!request || request.deletedAt) {
@@ -785,9 +787,22 @@ const reopenRequest = async (
 		}),
 		prisma.serviceRequest.update({
 			where: { id: requestId },
-			data: { status: RequestStatus.ASSIGNED, resolvedAt: null },
+			data: {
+				status: RequestStatus.ASSIGNED,
+				resolvedAt: null,
+				isOverdue: false,
+				slaDueAt: computeSlaDueAt(new Date(), request.category.slaHours),
+			},
 		}),
 	]);
+
+	if (request.assignedStaffId) {
+		NotificationService.notifyUser({
+			userId: request.assignedStaffId,
+			type: "REQUEST_REASSIGNED",
+			message: `Request "${request.title}" was reopened by the citizen.`,
+		});
+	}
 
 	return updated;
 };

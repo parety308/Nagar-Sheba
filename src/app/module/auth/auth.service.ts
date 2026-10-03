@@ -226,17 +226,21 @@ const verifyRegistrationEmail = async (payload: IRegistrationVerifyPayload) => {
 		"src/app/templates/welcome-registration.ejs",
 	);
 
-	const html = await ejs.renderFile(templatePath, {
-		name: createdUser.citizenProfile?.fullName,
-		email: createdUser.email,
-	});
+	try {
+		const html = await ejs.renderFile(templatePath, {
+			name: createdUser.citizenProfile?.fullName,
+			email: createdUser.email,
+		});
 
-	await transport.sendMail({
-		from: config.smtp.sender,
-		to: createdUser.email,
-		subject: "Welcome to Nagar Sheba",
-		html,
-	});
+		await transport.sendMail({
+			from: config.smtp.sender,
+			to: createdUser.email,
+			subject: "Welcome to Nagar Sheba",
+			html,
+		});
+	} catch (error) {
+		console.error("Post-action email failed:", error);
+	}
 
 	const { passwordHash: _, ...safeUser } = createdUser;
 
@@ -662,9 +666,9 @@ const resetPassword = async (payload: IResetPasswordPayload) => {
 			email,
 		},
 		data: {
-	passwordHash: hashedPassword,
-	mustChangePassword: false,
-},
+			passwordHash: hashedPassword,
+			mustChangePassword: false,
+		},
 	});
 
 	await redisClient.del(key);
@@ -674,15 +678,18 @@ const resetPassword = async (payload: IResetPasswordPayload) => {
 		"src/app/templates/reset.password.ejs",
 	);
 
-	const html = await ejs.renderFile(templatePath);
+	try {
+		const html = await ejs.renderFile(templatePath);
 
-	await transport.sendMail({
-		from: config.smtp.sender,
-		to: email,
-		subject: "Password Changed Successfully",
-		html,
-	});
-
+		await transport.sendMail({
+			from: config.smtp.sender,
+			to: email,
+			subject: "Password Changed Successfully",
+			html,
+		});
+	} catch (error) {
+		console.error("Post-action email failed:", error);
+	}
 	return {
 		message: "Password reset successfully.",
 	};
@@ -821,10 +828,7 @@ const changePassword = async (
 
 	// 400 (not 401) so the frontend doesn't treat it as an expired session
 	if (!matches) {
-		throw new AppError(
-			httpStatus.BAD_REQUEST,
-			"Current password is incorrect",
-		);
+		throw new AppError(httpStatus.BAD_REQUEST, "Current password is incorrect");
 	}
 
 	await prisma.user.update({
@@ -839,7 +843,7 @@ const changePassword = async (
 	});
 
 	return { message: "Password changed successfully." };
-}; 
+};
 export const AuthService = {
 	registerUser,
 	googleLogin,
@@ -851,5 +855,5 @@ export const AuthService = {
 	verifyRegistrationEmail,
 	updateProfileImage,
 	updateMyProfile,
-	changePassword
+	changePassword,
 };

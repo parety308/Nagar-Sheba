@@ -275,5 +275,5 @@ export const AuthController = {
 	verifyCitizenEmail,
 	updateProfileImage,
 	updateMyProfile,
-	changePassword
+	changePassword,
 };

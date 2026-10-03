@@ -8,12 +8,8 @@ const createRedisStore = (prefix: string) =>
 		prefix,
 	});
 
-const emailOrIp = (req: {
-	body?: { email?: string };
-	ip?: string;
-}) =>
-	req.body?.email?.toLowerCase?.() ||
-	ipKeyGenerator(req.ip ?? "unknown");
+const emailOrIp = (req: { body?: { email?: string }; ip?: string }) =>
+	req.body?.email?.toLowerCase?.() || ipKeyGenerator(req.ip ?? "unknown");
 
 export const otpLimiter = rateLimit({
 	windowMs: 15 * 60 * 1000,
@@ -38,8 +34,7 @@ export const loginLimiter = rateLimit({
 	store: createRedisStore("rl:login:"),
 
 	keyGenerator: (req) =>
-		req.body?.email?.toLowerCase?.() ||
-		ipKeyGenerator(req.ip ?? "unknown"),
+		req.body?.email?.toLowerCase?.() || ipKeyGenerator(req.ip ?? "unknown"),
 
 	message: {
 		success: false,
@@ -58,6 +53,20 @@ export const contactLimiter = rateLimit({
 	message: {
 		success: false,
 		message: "Too many messages. Please try again later.",
+		errors: [],
+	},
+});
+
+export const otpVerifyLimiter = rateLimit({
+	windowMs: 15 * 60 * 1000,
+	limit: 10,
+	standardHeaders: true,
+	legacyHeaders: false,
+	store: createRedisStore("rl:otp-verify:"),
+	keyGenerator: emailOrIp,
+	message: {
+		success: false,
+		message: "Too many attempts. Try again later.",
 		errors: [],
 	},
 });

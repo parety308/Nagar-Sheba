@@ -187,18 +187,42 @@ const completePayment = async (paymentId: string) => {
 	});
 
 	if (!payment) return;
-
-	// Idempotent — duplicate callbacks/IPNs are routine for both gateways.
 	if (payment.status === PaymentStatus.COMPLETED) return;
+
+	if (payment.request.status !== RequestStatus.PENDING_PAYMENT) {
+		await prisma.payment.update({
+			where: { id: payment.id },
+			data: {
+				status: PaymentStatus.COMPLETED,
+				paidAt: new Date(),
+			},
+		});
+
+		try {
+			await refundPaymentForRequest(
+				payment.requestId,
+				payment.request.citizenId,
+			);
+		} catch (error) {
+			console.error("Auto-refund of late payment failed:", error);
+		}
+
+		return;
+	}
 
 	await prisma.$transaction([
 		prisma.payment.update({
 			where: { id: payment.id },
-			data: { status: PaymentStatus.COMPLETED, paidAt: new Date() },
+			data: {
+				status: PaymentStatus.COMPLETED,
+				paidAt: new Date(),
+			},
 		}),
 		prisma.serviceRequest.update({
 			where: { id: payment.requestId },
-			data: { status: RequestStatus.SUBMITTED },
+			data: {
+				status: RequestStatus.SUBMITTED,
+			},
 		}),
 		prisma.statusHistory.create({
 			data: {
@@ -210,6 +234,7 @@ const completePayment = async (paymentId: string) => {
 			},
 		}),
 	]);
+
 	NotificationService.notifyUser({
 		userId: payment.request.citizenId,
 		type: "PAYMENT_COMPLETED",

@@ -1,6 +1,10 @@
 import { Router } from "express";
 import { auth } from "../../middleware/auth";
-import { loginLimiter, otpLimiter } from "../../middleware/rateLimiter";
+import {
+	loginLimiter,
+	otpLimiter,
+	otpVerifyLimiter,
+} from "../../middleware/rateLimiter";
 import { upload } from "../../middleware/upload";
 import { validateRequestBody } from "../../middleware/validateRequest";
 import { AuthController } from "./auth.controller";
@@ -17,6 +21,7 @@ router.post(
 
 router.post(
 	"/verify-email",
+	otpVerifyLimiter,
 	validateRequestBody(authValidationSchemas.CitizenEmailVerifyZodSchema),
 	AuthController.verifyCitizenEmail,
 );
@@ -43,6 +48,7 @@ router.post(
 
 router.post(
 	"/reset-password",
+	otpVerifyLimiter,
 	validateRequestBody(authValidationSchemas.ResetPasswordZodSchema),
 	AuthController.resetPassword,
 );
@@ -76,6 +82,6 @@ router.post(
 	auth(),
 	validateRequestBody(authValidationSchemas.ChangePasswordZodSchema),
 	AuthController.changePassword,
-); 
+);
 
 export const AuthRoutes = router;

@@ -26,11 +26,13 @@ declare module "sslcommerz-lts" {
 	}
 
 	interface SSLCommerzValidationResponse {
-	status?: string;
-	amount?: string;
-	currency?: string;
-	tran_id?: string;
-}
+		status?: string;
+		amount?: string;
+		currency?: string;
+		currency_type?: string;
+		currency_amount?: string;
+		tran_id?: string;
+	}
 
 	interface SSLCommerzTransactionQueryResponse {
 		status?: string;
