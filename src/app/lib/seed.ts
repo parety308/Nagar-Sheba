@@ -202,6 +202,36 @@ export const seed = async (): Promise<void> => {
 			},
 		});
 
+		// 3b. Demo admin (only seeded when a password is configured)
+		if (config.demo_admin.password) {
+			const demoAdminHash = await bcrypt.hash(
+				config.demo_admin.password,
+				SALT_ROUNDS,
+			);
+
+			await tx.user.upsert({
+				where: { email: config.demo_admin.email },
+				update: {
+					passwordHash: demoAdminHash,
+					role: Role.ADMIN,
+					status: AccountStatus.ACTIVE,
+					isEmailVerified: true,
+					mustChangePassword: false,
+				},
+				create: {
+					email: config.demo_admin.email,
+					passwordHash: demoAdminHash,
+					role: Role.ADMIN,
+					status: AccountStatus.ACTIVE,
+					isEmailVerified: true,
+					mustChangePassword: false,
+					adminProfile: {
+						create: { fullName: "Demo Administrator" },
+					},
+				},
+			});
+		}
+
 		// 4. Staff
 
 		const staffPasswordHash = await bcrypt.hash(STAFF_PASSWORD, SALT_ROUNDS);
@@ -243,6 +273,7 @@ export const seed = async (): Promise<void> => {
 		}
 
 		// 5. Demo citizen
+
 		const citizenHash = await bcrypt.hash(
 			config.demo_citizen.password,
 			SALT_ROUNDS,

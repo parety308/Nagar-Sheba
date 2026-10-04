@@ -53,4 +53,8 @@ export default {
 		email: process.env.DEMO_CITIZEN_EMAIL ?? "citizen@nagar-sheba.com",
 		password: process.env.DEMO_CITIZEN_PASSWORD ?? "ChangeMe@123",
 	},
+	demo_admin: {
+		email: process.env.DEMO_ADMIN_EMAIL ?? "demo.admin@nagar-sheba.com",
+		password: process.env.DEMO_ADMIN_PASSWORD ?? "",
+	},
 };

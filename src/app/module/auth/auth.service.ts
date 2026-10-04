@@ -533,45 +533,36 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 	}
 };
 
+const FORGOT_PASSWORD_MESSAGE =
+	"If an account exists for this email, a reset code has been sent.";
+
+const isResettable = (
+	user: {
+		deletedAt: Date | null;
+		status: AccountStatus;
+		authProvider: AuthProvider;
+		isEmailVerified: boolean;
+	} | null,
+) =>
+	!!user &&
+	!user.deletedAt &&
+	user.status !== AccountStatus.BLOCKED &&
+	user.authProvider === AuthProvider.CREDENTIAL &&
+	user.isEmailVerified;
+
 const forgotPassword = async (payload: IForgotPasswordPayload) => {
 	const email = payload.email.trim().toLowerCase();
 
 	const existingUser = await prisma.user.findUnique({
-		where: {
-			email,
-		},
+		where: { email },
 	});
 
-	if (!existingUser) {
-		throw new AppError(
-			httpStatus.NOT_FOUND,
-			"No account found with this email address.",
-		);
-	}
-
-	if (existingUser.status === AccountStatus.BLOCKED) {
-		throw new AppError(
-			httpStatus.FORBIDDEN,
-			"Your account has been blocked. Please contact support for assistance.",
-		);
-	}
-
-	if (existingUser.authProvider !== AuthProvider.CREDENTIAL) {
-		throw new AppError(
-			httpStatus.BAD_REQUEST,
-			"This account does not use a password. Please sign in using your registered authentication provider.",
-		);
-	}
-
-	if (!existingUser.isEmailVerified) {
-		throw new AppError(
-			httpStatus.BAD_REQUEST,
-			"Your email address is not verified. Please verify your email before resetting your password.",
-		);
+	// Same response whether or not the account exists
+	if (!isResettable(existingUser)) {
+		return { message: FORGOT_PASSWORD_MESSAGE };
 	}
 
 	const otp = crypto.randomInt(100000, 1000000);
-
 	const key = `forgot-password:${email}`;
 
 	await redisClient.set(key, otp.toString(), {
@@ -585,19 +576,17 @@ const forgotPassword = async (payload: IForgotPasswordPayload) => {
 		process.cwd(),
 		"src/app/templates/forgot.password.ejs",
 	);
-	const html = await ejs.renderFile(templatePath, {
-		otp,
-	});
+
+	const html = await ejs.renderFile(templatePath, { otp });
+
 	await transport.sendMail({
 		from: config.smtp.sender,
 		to: email,
 		subject: "Forgot Password",
 		html,
 	});
-	return {
-		message:
-			"A password reset verification code has been sent to your email address.",
-	};
+
+	return { message: FORGOT_PASSWORD_MESSAGE };
 };
 
 const resetPassword = async (payload: IResetPasswordPayload) => {
@@ -610,31 +599,10 @@ const resetPassword = async (payload: IResetPasswordPayload) => {
 		},
 	});
 
-	if (!existingUser) {
-		throw new AppError(
-			httpStatus.NOT_FOUND,
-			"No account found with this email address.",
-		);
-	}
-
-	if (existingUser.status === AccountStatus.BLOCKED) {
-		throw new AppError(
-			httpStatus.FORBIDDEN,
-			"Your account has been blocked. Please contact support for assistance.",
-		);
-	}
-
-	if (existingUser.authProvider !== AuthProvider.CREDENTIAL) {
+	if (!isResettable(existingUser)) {
 		throw new AppError(
 			httpStatus.BAD_REQUEST,
-			"This account does not use a password. Please sign in using your registered authentication provider.",
-		);
-	}
-
-	if (!existingUser.isEmailVerified) {
-		throw new AppError(
-			httpStatus.BAD_REQUEST,
-			"Your email address is not verified. Please verify your email first.",
+			"Invalid or expired verification code.",
 		);
 	}
 
@@ -642,17 +610,10 @@ const resetPassword = async (payload: IResetPasswordPayload) => {
 
 	const storedOtp = await redisClient.get(key);
 
-	if (!storedOtp) {
+	if (!storedOtp || storedOtp !== otp) {
 		throw new AppError(
 			httpStatus.BAD_REQUEST,
-			"OTP has expired or does not exist. Please request a new OTP.",
-		);
-	}
-
-	if (storedOtp !== otp) {
-		throw new AppError(
-			httpStatus.BAD_REQUEST,
-			"Invalid OTP. Please enter the correct OTP.",
+			"Invalid or expired verification code.",
 		);
 	}
 
@@ -690,6 +651,7 @@ const resetPassword = async (payload: IResetPasswordPayload) => {
 	} catch (error) {
 		console.error("Post-action email failed:", error);
 	}
+
 	return {
 		message: "Password reset successfully.",
 	};

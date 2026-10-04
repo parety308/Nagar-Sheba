@@ -295,6 +295,16 @@ const updateUserRole = async (
 	if (!targetUser || targetUser.deletedAt) {
 		throw new AppError(httpStatus.NOT_FOUND, "User not found");
 	}
+	const PROTECTED_EMAILS = [config.admin.email, config.demo_admin.email].map(
+		(e) => e?.toLowerCase(),
+	);
+
+	if (PROTECTED_EMAILS.includes(targetUser.email.toLowerCase())) {
+		throw new AppError(
+			httpStatus.FORBIDDEN,
+			"The role of this account cannot be changed",
+		);
+	}
 
 	if (targetUser.role === Role.CITIZEN) {
 		throw new AppError(
@@ -436,29 +446,68 @@ const getDashboardStats = async () => {
 		totalRevenue,
 		pendingPayments,
 		avgRating,
+		requestsByDepartment,
+		departments,
 	] = await Promise.all([
-		prisma.user.count({ where: { deletedAt: null } }),
-		prisma.user.count({ where: { role: Role.CITIZEN, deletedAt: null } }),
-		prisma.user.count({ where: { role: Role.STAFF, deletedAt: null } }),
-		prisma.serviceRequest.count({ where: { deletedAt: null } }),
+		prisma.user.count({
+			where: { deletedAt: null },
+		}),
+		prisma.user.count({
+			where: {
+				role: Role.CITIZEN,
+				deletedAt: null,
+			},
+		}),
+		prisma.user.count({
+			where: {
+				role: Role.STAFF,
+				deletedAt: null,
+			},
+		}),
+		prisma.serviceRequest.count({
+			where: { deletedAt: null },
+		}),
 		prisma.serviceRequest.groupBy({
 			by: ["status"],
 			_count: { _all: true },
 			where: { deletedAt: null },
 		}),
 		prisma.serviceRequest.count({
-			where: { isOverdue: true, deletedAt: null },
+			where: {
+				isOverdue: true,
+				deletedAt: null,
+			},
 		}),
 		prisma.payment.aggregate({
 			_sum: { amount: true },
 			where: { status: "COMPLETED" },
 		}),
-		prisma.payment.count({ where: { status: "PENDING" } }),
-		prisma.feedback.aggregate({ _avg: { rating: true } }),
+		prisma.payment.count({
+			where: { status: "PENDING" },
+		}),
+		prisma.feedback.aggregate({
+			_avg: { rating: true },
+		}),
+		prisma.serviceRequest.groupBy({
+			by: ["departmentId"],
+			_count: { _all: true },
+			where: { deletedAt: null },
+		}),
+		prisma.department.findMany({
+			where: { deletedAt: null },
+			select: {
+				id: true,
+				name: true,
+			},
+		}),
 	]);
 
 	return {
-		users: { total: totalUsers, citizens: totalCitizens, staff: totalStaff },
+		users: {
+			total: totalUsers,
+			citizens: totalCitizens,
+			staff: totalStaff,
+		},
 		requests: {
 			total: totalRequests,
 			overdue: overdueCount,
@@ -469,6 +518,15 @@ const getDashboardStats = async () => {
 				},
 				{} as Record<string, number>,
 			),
+			byDepartment: departments
+				.map((d) => ({
+					departmentId: d.id,
+					name: d.name,
+					total:
+						requestsByDepartment.find((r) => r.departmentId === d.id)?._count
+							._all ?? 0,
+				}))
+				.sort((a, b) => b.total - a.total),
 		},
 		payments: {
 			totalRevenue: totalRevenue._sum.amount ?? 0,

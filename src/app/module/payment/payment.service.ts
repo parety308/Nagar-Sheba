@@ -252,6 +252,15 @@ const failPaymentIfPending = async (paymentId: string) => {
 	}
 };
 
+const cancelPaymentIfPending = async (paymentId: string) => {
+	const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
+	if (payment && payment.status === PaymentStatus.PENDING) {
+		await prisma.payment.update({
+			where: { id: payment.id },
+			data: { status: PaymentStatus.CANCELLED },
+		});
+	}
+};
 // SSLCOMMERZ VERIFICATION (IPN + redirect handlers both call this)
 
 const verifySSLCommerzAndComplete = async (tranId: string, valId: string) => {
@@ -303,7 +312,10 @@ const handleSSLCommerzIPN = async (body: Record<string, string>) => {
 		const payment = await prisma.payment.findUnique({
 			where: { providerRef: tran_id },
 		});
-		if (payment) await failPaymentIfPending(payment.id);
+		if (payment) {
+			if (status === "CANCELLED") await cancelPaymentIfPending(payment.id);
+			else await failPaymentIfPending(payment.id);
+		}
 		return { received: true };
 	}
 
@@ -340,7 +352,7 @@ const handleSSLCommerzCancelRedirect = async (body: Record<string, string>) => {
 		const payment = await prisma.payment.findUnique({
 			where: { providerRef: tran_id },
 		});
-		if (payment) await failPaymentIfPending(payment.id);
+		if (payment) await cancelPaymentIfPending(payment.id);
 	}
 	return `${config.frontend_url}/payments/cancel?tran_id=${tran_id ?? ""}`;
 };
@@ -369,7 +381,8 @@ const handleBkashCallback = async (query: {
 	}
 
 	if (status === "cancel" || status === "failure") {
-		await failPaymentIfPending(payment.id);
+		if (status === "cancel") await cancelPaymentIfPending(payment.id);
+		else await failPaymentIfPending(payment.id);
 		return `${config.frontend_url}/payments/${status === "cancel" ? "cancel" : "fail"}?paymentID=${paymentID}`;
 	}
 
