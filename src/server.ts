@@ -4,7 +4,7 @@ import { transport } from "./app/lib/nodemailer";
 import { prisma } from "./app/lib/prisma";
 import { redisClient } from "./app/lib/redis";
 import { seed } from "./app/lib/seed";
-
+import cron from "node-cron";
 const PORT = config.port;
 
 const main = async () => {
@@ -32,7 +32,7 @@ const main = async () => {
 		app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
 
 		runRequestLifecycleJob();
-		setInterval(runRequestLifecycleJob, 15 * 60 * 1000);
+cron.schedule("*/15 * * * *", runRequestLifecycleJob);
 	} catch (error) {
 		console.error("Error starting the server:", error);
 		if (redisClient.isOpen) await redisClient.quit();

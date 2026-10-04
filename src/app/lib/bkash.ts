@@ -1,10 +1,13 @@
 import config from "../config";
+import { redisClient } from "./redis";
 
-let cachedToken: { token: string; expiresAt: number } | null = null;
+const TOKEN_KEY = "bkash:id_token";
 
 const grantToken = async (): Promise<string> => {
-	if (cachedToken && cachedToken.expiresAt > Date.now()) {
-		return cachedToken.token;
+	const cached = await redisClient.get(TOKEN_KEY);
+
+	if (cached) {
+		return cached;
 	}
 
 	const res = await fetch(
@@ -25,16 +28,23 @@ const grantToken = async (): Promise<string> => {
 
 	const data = await res.json();
 
-	if (!data.id_token) {
+	if (!res.ok || !data.id_token) {
 		throw new Error(`bKash grant token failed: ${JSON.stringify(data)}`);
 	}
 
-	cachedToken = {
-		token: data.id_token,
-		expiresAt: Date.now() + (Number(data.expires_in ?? 3600) - 60) * 1000,
-	};
+	const ttl = Math.max(
+		Number(data.expires_in ?? 3600) - 60,
+		60,
+	);
 
-	return cachedToken.token;
+	await redisClient.set(TOKEN_KEY, data.id_token, {
+		expiration: {
+			type: "EX",
+			value: ttl,
+		},
+	});
+
+	return data.id_token;
 };
 
 const authHeaders = async () => ({
@@ -83,30 +93,41 @@ export const bkashClient = {
 				}),
 			},
 		);
+
 		return res.json();
 	},
 
-	executePayment: async (paymentID: string): Promise<IBkashExecuteResponse> => {
+	executePayment: async (
+		paymentID: string,
+	): Promise<IBkashExecuteResponse> => {
 		const res = await fetch(
 			`${config.bkash.base_url}/tokenized/checkout/execute`,
 			{
 				method: "POST",
 				headers: await authHeaders(),
-				body: JSON.stringify({ paymentID }),
+				body: JSON.stringify({
+					paymentID,
+				}),
 			},
 		);
+
 		return res.json();
 	},
 
-	queryPayment: async (paymentID: string): Promise<IBkashExecuteResponse> => {
+	queryPayment: async (
+		paymentID: string,
+	): Promise<IBkashExecuteResponse> => {
 		const res = await fetch(
 			`${config.bkash.base_url}/tokenized/checkout/payment/status`,
 			{
 				method: "POST",
 				headers: await authHeaders(),
-				body: JSON.stringify({ paymentID }),
+				body: JSON.stringify({
+					paymentID,
+				}),
 			},
 		);
+
 		return res.json();
 	},
 
@@ -131,6 +152,7 @@ export const bkashClient = {
 				}),
 			},
 		);
+
 		return res.json();
 	},
 };
