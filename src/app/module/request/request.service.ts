@@ -897,7 +897,63 @@ const addAttachmentsToRequest = async (
 		orderBy: { createdAt: "asc" },
 	});
 };
+const getStaffPerformance = async (staffId: string) => {
+	const where = { assignedStaffId: staffId, deletedAt: null };
 
+	const [grouped, overdue, finished] = await Promise.all([
+		prisma.serviceRequest.groupBy({
+			by: ["status"],
+			_count: { _all: true },
+			where,
+		}),
+		prisma.serviceRequest.count({ where: { ...where, isOverdue: true } }),
+		prisma.serviceRequest.findMany({
+			where: { ...where, resolvedAt: { not: null } },
+			select: { createdAt: true, resolvedAt: true, slaDueAt: true },
+			orderBy: { resolvedAt: "desc" },
+			take: 200,
+		}),
+	]);
+
+	const byStatus = grouped.reduce(
+		(acc, row) => {
+			acc[row.status] = row._count._all;
+			return acc;
+		},
+		{} as Record<string, number>,
+	);
+
+	const total = Object.values(byStatus).reduce((a, b) => a + b, 0);
+	const resolved = (byStatus.RESOLVED ?? 0) + (byStatus.CLOSED ?? 0);
+
+	const hours = finished.map(
+		(r) => (r.resolvedAt!.getTime() - r.createdAt.getTime()) / 3_600_000,
+	);
+	const avgResolutionHours = hours.length
+		? Math.round((hours.reduce((a, b) => a + b, 0) / hours.length) * 10) / 10
+		: null;
+
+	const withSla = finished.filter((r) => r.slaDueAt);
+	const onTimeRate = withSla.length
+		? Math.round(
+				(withSla.filter(
+					(r) => r.resolvedAt!.getTime() <= r.slaDueAt!.getTime(),
+				).length /
+					withSla.length) *
+					100,
+			)
+		: null;
+
+	return {
+		total,
+		resolved,
+		overdue,
+		inProgress: byStatus.IN_PROGRESS ?? 0,
+		avgResolutionHours,
+		onTimeRate,
+		byStatus,
+	};
+};
 export const RequestService = {
 	createServiceRequest,
 	getAllServiceRequests,
@@ -908,4 +964,5 @@ export const RequestService = {
 	reassignRequest,
 	reopenRequest,
 	addAttachmentsToRequest,
+	getStaffPerformance
 };

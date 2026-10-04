@@ -263,6 +263,16 @@ const changePassword = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
+const resendOtp = catchAsync(async (req: Request, res: Response) => {
+	const result = await AuthService.resendRegistrationOtp(req.body.email);
+	sendResponse(res, {
+		statusCode: httpStatus.OK,
+		success: true,
+		message: result.message,
+		data: null,
+	});
+});
+
 export const AuthController = {
 	registerUser,
 	googleLogin,
@@ -276,4 +286,5 @@ export const AuthController = {
 	updateProfileImage,
 	updateMyProfile,
 	changePassword,
+	resendOtp
 };

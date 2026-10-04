@@ -806,6 +806,57 @@ const changePassword = async (
 
 	return { message: "Password changed successfully." };
 };
+
+const resendRegistrationOtp = async (rawEmail: string) => {
+	const email = rawEmail.trim().toLowerCase();
+
+	const dataKey = `registration-data:${email}`;
+	const otpKey = `citizen-registration-otp:${email}`;
+	const cooldownKey = `registration-resend-cooldown:${email}`;
+
+	const stored = await redisClient.get(dataKey);
+	if (!stored) {
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			"Registration session expired. Please register again.",
+		);
+	}
+
+	if (await redisClient.get(cooldownKey)) {
+		throw new AppError(
+			httpStatus.TOO_MANY_REQUESTS,
+			"Please wait a minute before requesting another code.",
+		);
+	}
+
+	const { fullName } = JSON.parse(stored) as IRegistrationRedisPayload;
+	const otpValue = crypto.randomInt(100000, 1000000);
+
+	await redisClient.set(otpKey, otpValue.toString(), {
+		expiration: { type: "EX", value: 5 * 60 },
+	});
+	await redisClient.set(dataKey, stored, {
+		expiration: { type: "EX", value: 5 * 60 },
+	});
+	await redisClient.set(cooldownKey, "1", {
+		expiration: { type: "EX", value: 60 },
+	});
+
+	const html = await ejs.renderFile(
+		path.join(process.cwd(), "src/app/templates/registration-otp.ejs"),
+		{ name: fullName, email, otpValue, expirationMinutes: 5 },
+	);
+
+	await transport.sendMail({
+		from: config.smtp.sender,
+		to: email,
+		subject: "Verify Email Address",
+		html,
+	});
+
+	return { message: "A new verification code has been sent." };
+};
+
 export const AuthService = {
 	registerUser,
 	googleLogin,
@@ -818,4 +869,5 @@ export const AuthService = {
 	updateProfileImage,
 	updateMyProfile,
 	changePassword,
+	resendRegistrationOtp
 };

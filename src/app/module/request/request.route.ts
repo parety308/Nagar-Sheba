@@ -19,6 +19,11 @@ router.post(
 router.get("/search", auth(), RequestController.searchServiceRequests);
 
 router.get("/", auth(), RequestController.getAllServiceRequests);
+router.get(
+	"/performance/me",
+	auth(Role.STAFF),
+	RequestController.getStaffPerformance,
+);
 router.get("/:id", auth(), RequestController.getSingleServiceRequest);
 
 router.post(

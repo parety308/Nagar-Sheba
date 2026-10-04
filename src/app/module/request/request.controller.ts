@@ -180,6 +180,19 @@ const addAttachments = catchAsync(async (req: Request, res: Response) => {
 		data: result,
 	});
 });
+
+const getStaffPerformance = catchAsync(async (req: Request, res: Response) => {
+	const user = req.user as IRequestUser;
+	const result = await RequestService.getStaffPerformance(user.userId);
+
+	sendResponse(res, {
+		statusCode: httpStatus.OK,
+		success: true,
+		message: "Performance fetched successfully",
+		data: result,
+	});
+});
+
 export const RequestController = {
 	createServiceRequest,
 	getAllServiceRequests,
@@ -190,4 +203,6 @@ export const RequestController = {
 	reassignRequest,
 	reopenRequest,
 	addAttachments,
+	getStaffPerformance
+	
 };
