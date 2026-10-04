@@ -27,6 +27,11 @@ router.patch(
 );
 
 router.get("/:id", auth(), PaymentController.getSinglePayment);
+router.get(
+	"/:id/receipt",
+	auth(Role.CITIZEN, Role.ADMIN),
+	PaymentController.downloadReceipt,
+);
 router.get("/", auth(), PaymentController.getAllPayments);
 router.get("/bkash/callback", PaymentController.handleBkashCallback);
 

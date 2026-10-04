@@ -5,6 +5,7 @@ import { catchAsync } from "../../utils/catchAsync";
 import { sendResponse } from "../../utils/sendResponse";
 import { IRequestUser } from "../auth/auth.interface";
 import { PaymentService } from "./payment.service";
+import { buildReceiptPdf } from "../../utils/receiptPdf";
 
 const initiatePayment = catchAsync(async (req: Request, res: Response) => {
 	const actor = req.user as IRequestUser;
@@ -140,6 +141,21 @@ const manualRefundPayment = catchAsync(async (req: Request, res: Response) => {
 	});
 });
 
+const downloadReceipt = catchAsync(async (req: Request, res: Response) => {
+	const actor = req.user as IRequestUser;
+	const payment = await PaymentService.getReceiptData(
+		req.params.id as string,
+		actor,
+	);
+
+	res.setHeader("Content-Type", "application/pdf");
+	res.setHeader(
+		"Content-Disposition",
+		`attachment; filename="receipt-${payment.request.trackingRef}.pdf"`,
+	);
+
+	buildReceiptPdf(payment).pipe(res);
+});
 export const PaymentController = {
 	initiatePayment,
 	handleSSLCommerzIPN,
@@ -150,4 +166,5 @@ export const PaymentController = {
 	manualRefundPayment,
 	getSinglePayment,
 	getAllPayments,
+	downloadReceipt
 };

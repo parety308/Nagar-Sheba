@@ -694,6 +694,22 @@ const getAllPayments = async (query: IPaymentQuery, actor: IRequestUser) => {
 	};
 };
 
+const getReceiptData = async (paymentId: string, actor: IRequestUser) => {
+	const payment = await getSinglePayment(paymentId, actor);
+
+	if (
+		payment.status !== PaymentStatus.COMPLETED &&
+		payment.status !== PaymentStatus.REFUNDED
+	) {
+		throw new AppError(
+			httpStatus.CONFLICT,
+			"A receipt is only available for completed payments",
+		);
+	}
+
+	return payment;
+};
+
 export const PaymentService = {
 	initiatePaymentSession,
 	handleSSLCommerzIPN,
@@ -705,4 +721,5 @@ export const PaymentService = {
 	manualRefundPayment,
 	getSinglePayment,
 	getAllPayments,
+	getReceiptData
 };
