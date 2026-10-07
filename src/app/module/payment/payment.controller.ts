@@ -41,26 +41,26 @@ const redirectHandler = (
 	run: (body: Record<string, string>) => Promise<string>,
 ) =>
 	catchAsync(async (req: Request, res: Response) => {
-		// SSLCommerz may send data in the body (POST) or the query (GET)
 		const data = {
 			...(req.query as Record<string, string>),
 			...(req.body ?? {}),
 		};
 
-		let url: string;
 		try {
-			url = await run(data);
+			const url = await run(data);
+			res.redirect(303, url);
 		} catch (error) {
 			console.error(`SSLCommerz ${outcome} handler failed:`, error);
-			// Verification problems must not strand the user on the API domain.
-			url = buildFallback(
-				outcome === "success" ? "fail" : outcome,
-				data.tran_id,
+
+			const tranId = data.tran_id ?? "";
+			const fallbackOutcome = outcome === "success" ? "fail" : outcome;
+			const frontend = (config.frontend_url ?? "").replace(/\/$/, "");
+
+			res.redirect(
+				303,
+				`${frontend}/payments/${fallbackOutcome}?tran_id=${encodeURIComponent(tranId)}`,
 			);
 		}
-
-		// 303 forces the browser to switch the POST into a GET on the frontend
-		res.redirect(303, url);
 	});
 
 const handleSSLCommerzSuccess = redirectHandler(
@@ -81,7 +81,8 @@ const handleBkashCallback = catchAsync(async (req: Request, res: Response) => {
 		paymentID: req.query.paymentID as string | undefined,
 		status: req.query.status as string | undefined,
 	});
-	res.redirect(redirectUrl);
+	// res.redirect(redirectUrl);
+	res.redirect(303, redirectUrl);
 });
 
 // ---- Read ----

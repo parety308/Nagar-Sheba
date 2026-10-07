@@ -14,6 +14,8 @@ import { createSSLCommerzInstance } from "../../lib/sslcommerz";
 import { IRequestUser } from "../auth/auth.interface";
 import { NotificationService } from "../notification/notification.service";
 import { IPaymentQuery, TRequestForPayment } from "./payment.interface";
+import { transport } from "../../lib/nodemailer";
+import { buildReceiptPdfBuffer } from "../../utils/receiptPdf";
 
 const FRONTEND = (config.frontend_url ?? "").replace(/\/$/, "");
 
@@ -180,6 +182,60 @@ const initiatePaymentSession = async (
 
 // SHARED COMPLETION LOGIC — one place that flips Payment + ServiceRequest
 
+const sendReceiptEmail = async (paymentId: string) => {
+	try {
+		const payment = await prisma.payment.findUnique({
+			where: { id: paymentId },
+			include: {
+				request: {
+					include: {
+						category: { select: { name: true } },
+						department: { select: { name: true } },
+						citizen: {
+							select: {
+								email: true,
+								citizenProfile: { select: { fullName: true } },
+							},
+						},
+					},
+				},
+			},
+		});
+
+		if (!payment) return;
+
+		const { request } = payment;
+
+		const pdf = await buildReceiptPdfBuffer({
+			id: payment.id,
+			provider: payment.provider,
+			providerRef: payment.providerRef,
+			amount: payment.amount,
+			status: payment.status,
+			paidAt: payment.paidAt,
+			refundedAt: payment.refundedAt,
+			request: { trackingRef: request.trackingRef, title: request.title },
+			citizenName: request.citizen.citizenProfile?.fullName,
+			citizenEmail: request.citizen.email,
+			service: request.category.name,
+			department: request.department.name,
+		});
+
+		await transport.sendMail({
+			from: config.smtp.sender,
+			to: request.citizen.email,
+			subject: `Payment receipt - ${request.trackingRef}`,
+			text: `Your payment of BDT ${payment.amount} for request ${request.trackingRef} was successful. Your receipt is attached.`,
+			attachments: [
+				{ filename: `receipt-${request.trackingRef}.pdf`, content: pdf },
+			],
+		});
+	} catch (error) {
+		// Never let an email problem affect the payment itself
+		console.error("Failed to send receipt email:", error);
+	}
+};
+
 const completePayment = async (paymentId: string) => {
 	const payment = await prisma.payment.findUnique({
 		where: { id: paymentId },
@@ -240,6 +296,7 @@ const completePayment = async (paymentId: string) => {
 		type: "PAYMENT_COMPLETED",
 		message: `Your payment of ${payment.amount} BDT was completed successfully.`,
 	});
+	void sendReceiptEmail(payment.id); 
 };
 
 const failPaymentIfPending = async (paymentId: string) => {
@@ -356,7 +413,6 @@ const handleSSLCommerzCancelRedirect = async (body: Record<string, string>) => {
 	}
 	return `${config.frontend_url}/payments/cancel?tran_id=${tran_id ?? ""}`;
 };
-
 // BKASH VERIFICATION — single callback URL, status differentiated by query
 
 const handleBkashCallback = async (query: {
