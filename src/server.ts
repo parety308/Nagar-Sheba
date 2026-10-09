@@ -5,6 +5,7 @@ import { prisma } from "./app/lib/prisma";
 import { redisClient } from "./app/lib/redis";
 import { seed } from "./app/lib/seed";
 import cron from "node-cron";
+import { seedDemoData } from "./app/lib/seedDemoData";
 const PORT = config.port;
 
 const main = async () => {
@@ -18,7 +19,7 @@ const main = async () => {
 		const { default: app } = await import("./app");
 
 		await seed();
-
+await seedDemoData();
 		transport
 			.verify()
 			.then(() => console.log("Nodemailer Connected Successfully"))

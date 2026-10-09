@@ -244,16 +244,20 @@ export const seed = async (): Promise<void> => {
 			}
 
 			await tx.user.upsert({
-				where: {
-					email: staff.email,
-				},
-				update: {
-					passwordHash: staffPasswordHash,
-					role: Role.STAFF,
-					status: AccountStatus.ACTIVE,
-					isEmailVerified: true,
-					mustChangePassword: false,
-				},
+  where: { email: staff.email },
+  update: {
+    passwordHash: staffPasswordHash,
+    role: Role.STAFF,
+    status: AccountStatus.ACTIVE,
+    isEmailVerified: true,
+    mustChangePassword: false,
+    staffProfile: {
+      upsert: {
+        create: { departmentId, fullName: staff.fullName, title: staff.title },
+        update: { departmentId, fullName: staff.fullName, title: staff.title },
+      },
+    },
+  },
 				create: {
 					email: staff.email,
 					passwordHash: staffPasswordHash,
