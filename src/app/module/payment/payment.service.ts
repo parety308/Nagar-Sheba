@@ -225,7 +225,7 @@ const sendReceiptEmail = async (paymentId: string) => {
 			to: config.resend.contact_to,
 			subject: `Payment receipt - ${request.trackingRef}`,
 			text: `Your payment of BDT ${payment.amount} for request ${request.trackingRef} was successful. Your receipt is attached.`,
-			attachments: [
+			attachments:[
 				{ filename: `receipt-${request.trackingRef}.pdf`, content: pdf },
 			],
 		});
