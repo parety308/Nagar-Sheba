@@ -30,7 +30,7 @@ await seedDemoData();
 				),
 			);
 
-		app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+		// app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
 
 		runRequestLifecycleJob();
 cron.schedule("*/15 * * * *", runRequestLifecycleJob);
