@@ -13,7 +13,7 @@ import {
 import config from "../../config";
 import { AppError } from "../../errors/AppError";
 import { googleClient } from "../../lib/googleAuth";
-import { transport } from "../../lib/nodemailer";
+import { sendMail } from "../../lib/mailer";
 import { prisma } from "../../lib/prisma";
 import { redisClient } from "../../lib/redis";
 import { jwtUtils } from "../../utils/jwt";
@@ -94,8 +94,7 @@ const registerUser = async (payload: IRegisterUserPayload) => {
 		expirationMinutes: 5,
 	});
 
-	await transport.sendMail({
-		from: config.smtp.sender,
+	await sendMail({
 		to: email,
 		subject: "Verify Email Address",
 		html,
@@ -232,9 +231,8 @@ const verifyRegistrationEmail = async (payload: IRegistrationVerifyPayload) => {
 			email: createdUser.email,
 		});
 
-		await transport.sendMail({
-			from: config.smtp.sender,
-			to: createdUser.email,
+		await sendMail({
+			to: config.resend.contact_to,
 			subject: "Welcome to Nagar Sheba",
 			html,
 		});
@@ -579,9 +577,8 @@ const forgotPassword = async (payload: IForgotPasswordPayload) => {
 
 	const html = await ejs.renderFile(templatePath, { otp });
 
-	await transport.sendMail({
-		from: config.smtp.sender,
-		to: email,
+	await sendMail({
+		to: config.resend.contact_to,
 		subject: "Forgot Password",
 		html,
 	});
@@ -642,9 +639,8 @@ const resetPassword = async (payload: IResetPasswordPayload) => {
 	try {
 		const html = await ejs.renderFile(templatePath);
 
-		await transport.sendMail({
-			from: config.smtp.sender,
-			to: email,
+		await sendMail({
+			to: config.resend.contact_to,
 			subject: "Password Changed Successfully",
 			html,
 		});
@@ -866,8 +862,7 @@ const resendRegistrationOtp = async (rawEmail: string) => {
 		{ name: fullName, email, otpValue, expirationMinutes: 5 },
 	);
 
-	await transport.sendMail({
-		from: config.smtp.sender,
+	await sendMail({
 		to: email,
 		subject: "Verify Email Address",
 		html,

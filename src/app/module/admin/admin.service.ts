@@ -11,7 +11,7 @@ import {
 } from "../../../generated/prisma/enums";
 import config from "../../config";
 import { AppError } from "../../errors/AppError";
-import { transport } from "../../lib/nodemailer";
+import { sendMail } from "../../lib/mailer";
 import { prisma } from "../../lib/prisma";
 import { IRequestUser } from "../auth/auth.interface";
 import {
@@ -146,9 +146,8 @@ const provisionStaff = async (
 			temporaryPassword,
 		});
 
-		await transport.sendMail({
-			from: config.smtp.sender,
-			to: personalEmail,
+		await sendMail({
+			to: config.resend.contact_to,
 			subject: "Your Nagar Sheba Account",
 			html,
 		});

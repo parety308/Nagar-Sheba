@@ -1,5 +1,5 @@
 import config from "../../config";
-import { transport } from "../../lib/nodemailer";
+import { sendMail } from "../../lib/mailer";
 import { prisma } from "../../lib/prisma";
 
 const getStats = async () => {
@@ -29,9 +29,8 @@ const sendContactMessage = async (payload: {
 	subject: string;
 	message: string;
 }) => {
-	await transport.sendMail({
-		from: config.smtp.sender,
-		to: config.smtp.user,
+	await sendMail({
+		to: config.resend.contact_to,
 		replyTo: payload.email,
 		subject: `[Nagar Sheba Contact] ${payload.subject}`,
 		text: `From: ${payload.name} <${payload.email}>\n\n${payload.message}`,

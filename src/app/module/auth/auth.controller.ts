@@ -169,6 +169,7 @@ const logoutUser = catchAsync(async (req: Request, res: Response) => {
 
 const forgotPassword = catchAsync(async (req: Request, res: Response) => {
 	const payload = req.body;
+	// console.log(payload);
 	const result = await AuthService.forgotPassword(payload);
 	sendResponse(res, {
 		statusCode: httpStatus.OK,

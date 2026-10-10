@@ -32,6 +32,11 @@ export default {
 		sender: process.env.SMTP_SENDER!,
 		password: process.env.SMTP_PASSWORD!,
 	},
+	resend: {
+		api_key: process.env.RESEND_API_KEY!,
+		from: process.env.EMAIL_FROM!,
+		contact_to: process.env.CONTACT_RECEIVER_EMAIL!,
+	},
 	cloudinary: {
 		cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
 		api_key: process.env.CLOUDINARY_API_KEY!,

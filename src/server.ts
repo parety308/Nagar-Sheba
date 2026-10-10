@@ -1,7 +1,6 @@
 import cron from "node-cron";
 import config from "./app/config";
 import { runRequestLifecycleJob } from "./app/jobs/requestLifecycle.job";
-import { transport } from "./app/lib/nodemailer";
 import { prisma } from "./app/lib/prisma";
 import { redisClient } from "./app/lib/redis";
 
@@ -16,16 +15,6 @@ const main = async () => {
 		console.log("Connected to Redis successfully.");
 
 		const { default: app } = await import("./app");
-
-		transport
-			.verify()
-			.then(() => console.log("Nodemailer Connected Successfully"))
-			.catch((err) =>
-				console.error(
-					"Nodemailer verification failed (continuing anyway):",
-					err.message,
-				),
-			);
 
 		app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
 

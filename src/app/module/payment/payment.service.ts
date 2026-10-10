@@ -9,7 +9,7 @@ import {
 import config from "../../config";
 import { AppError } from "../../errors/AppError";
 import { bkashClient } from "../../lib/bkash";
-import { transport } from "../../lib/nodemailer";
+import { sendMail } from "../../lib/mailer";
 import { prisma } from "../../lib/prisma";
 import { createSSLCommerzInstance } from "../../lib/sslcommerz";
 import { buildReceiptPdfBuffer } from "../../utils/receiptPdf";
@@ -221,9 +221,8 @@ const sendReceiptEmail = async (paymentId: string) => {
 			department: request.department.name,
 		});
 
-		await transport.sendMail({
-			from: config.smtp.sender,
-			to: request.citizen.email,
+		await sendMail({
+			to: config.resend.contact_to,
 			subject: `Payment receipt - ${request.trackingRef}`,
 			text: `Your payment of BDT ${payment.amount} for request ${request.trackingRef} was successful. Your receipt is attached.`,
 			attachments: [
