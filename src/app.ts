@@ -1,4 +1,3 @@
-
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express, { Application, Request, Response } from "express";
@@ -11,6 +10,7 @@ import config from "./app/config";
 import { redisClient } from "./app/lib/redis";
 import { globalErrorHandler } from "./app/middleware/globalErrorHandler";
 import { notFound } from "./app/middleware/notFound";
+import { runRequestLifecycleJob } from "./app/jobs/requestLifecycle.job";
 
 import { AdminRoutes } from "./app/module/admin/admin.route";
 import { AuthRoutes } from "./app/module/auth/auth.route";
@@ -37,13 +37,9 @@ app.use(
         max: 1500,
         standardHeaders: true,
         legacyHeaders: false,
-
-        // Do not count frequent authentication-status checks
-        // against the global IP-based rate limit.
         skip: (req: Request) =>
             req.path === "/api/v1/auth/me" ||
             req.path === "/auth/me",
-
         store: new RedisStore({
             sendCommand: (...args: string[]) =>
                 redisClient.sendCommand(args),
@@ -75,6 +71,29 @@ app.use("/api/v1/payments", PaymentRoutes);
 app.use("/api/v1/feedbacks", FeedbackRoutes);
 app.use("/api/v1/notifications", NotificationRoutes);
 app.use("/api/v1/public", PublicRoutes);
+
+// Internal cron route
+app.get("/api/v1/internal/lifecycle", async (req, res, next) => {
+    if (
+        !process.env.CRON_SECRET ||
+        req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`
+    ) {
+        return res.status(401).json({
+            success: false,
+            message: "Unauthorized",
+        });
+    }
+
+    try {
+        await runRequestLifecycleJob();
+
+        return res.status(200).json({
+            success: true,
+        });
+    } catch (error) {
+        return next(error);
+    }
+});
 
 // Health check
 app.get("/", (_req: Request, res: Response) => {

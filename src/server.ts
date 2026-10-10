@@ -3,9 +3,8 @@ import { runRequestLifecycleJob } from "./app/jobs/requestLifecycle.job";
 import { transport } from "./app/lib/nodemailer";
 import { prisma } from "./app/lib/prisma";
 import { redisClient } from "./app/lib/redis";
-import { seed } from "./app/lib/seed";
 import cron from "node-cron";
-import { seedDemoData } from "./app/lib/seedDemoData";
+
 const PORT = config.port;
 
 const main = async () => {
@@ -18,8 +17,7 @@ const main = async () => {
 
 		const { default: app } = await import("./app");
 
-		await seed();
-await seedDemoData();
+
 		transport
 			.verify()
 			.then(() => console.log("Nodemailer Connected Successfully"))
@@ -30,7 +28,7 @@ await seedDemoData();
 				),
 			);
 
-		// app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+		app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
 
 		runRequestLifecycleJob();
 cron.schedule("*/15 * * * *", runRequestLifecycleJob);

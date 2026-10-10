@@ -1,3 +1,4 @@
+/// <reference path="../types/sslcommerz-lts.d.ts" />
 import SSLCommerzPayment from "sslcommerz-lts";
 import config from "../config";
 
