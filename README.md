@@ -1,342 +1,377 @@
-# 🏙️ Nagar Sheba — City Complaint & Service Request Platform
+<div align="center">
 
-> A backend-only RESTful API that lets citizens report civic issues (potholes, water leakage, garbage collection, licensing requests, etc.), routes them to the right city department, tracks them through a full status lifecycle, and handles paid service fees through real payment gateways.
+# 🏙️ Nagar Sheba — Backend API
 
-🔗 **Live API:** [https://nagar-sheba-backend.onrender.com](https://nagar-sheba-backend.onrender.com/)
+### City Complaint & Service Request Platform
 
----
+A role-based REST API that lets citizens report civic issues and pay permit fees, routes each request to the right department, enforces SLA deadlines, and gives admins full oversight and an audit trail.
 
-## 📖 Table of Contents
+[![Node](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Express](https://img.shields.io/badge/Express-5-000000?logo=express)](https://expressjs.com/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Prisma](https://img.shields.io/badge/Prisma-7-2D3748?logo=prisma)](https://www.prisma.io/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Redis](https://img.shields.io/badge/Redis-DC382D?logo=redis&logoColor=white)](https://redis.io/)
 
-- [Problem & Solution](#-problem--solution)
-- [Tech Stack](#️-tech-stack)
-- [Roles & Permissions](#-roles--permissions)
-- [Core Workflow](#-core-workflow)
-- [Database Design](#-database-design)
-- [API Overview](#-api-overview)
-- [Response Format](#-response-format)
-- [Getting Started](#-getting-started)
-- [Environment Variables](#-environment-variables)
-- [Payment Integration](#-payment-integration)
-- [Background Jobs](#-background-jobs)
-- [Security](#-security)
-- [Submission Details](#-submission-details)
+[🌐 Live API](https://nagar-sheba.onrender.com) ·
+[💻 Frontend Repo](https://github.com/parety308/Nagar-Sheba-Frontend) ·
+[📦 Backend Repo](https://github.com/parety308/Nagar-Sheba)
+
+</div>
 
 ---
 
-## 🎯 Problem & Solution
+## 📖 Contents
 
-City residents currently report civic issues (road damage, water leaks, waste collection failures, licensing needs) through scattered, informal channels with no tracking, no accountability, and no SLA enforcement. **Nagar Sheba** gives citizens a single place to file a request, gives city staff a queue to work from, and gives administrators oversight, analytics, and audit visibility across every department.
+[Overview](#-overview) · [Features](#-features) · [Tech Stack](#️-tech-stack) · [Roles](#-roles--permissions) · [Architecture](#-architecture) · [Request Lifecycle](#-request-lifecycle) · [Database](#️-database) · [API Reference](#-api-reference) · [Payments](#-payments) · [Background Jobs](#️-background-jobs) · [Getting Started](#-getting-started) · [Environment](#-environment-variables) · [Deployment](#️-deployment) · [Security](#-security)
+
+---
+
+## 🎯 Overview
+
+Residents often report potholes, water leaks, or licence needs through scattered channels with no tracking and no accountability. **Nagar Sheba** ("City Service") gives every request an owner, a deadline, and a visible history.
+
+| For | What the API provides |
+|---|---|
+| 👤 **Citizens** | File requests with photos, pay fees online, track status, reopen or rate results |
+| 🛠️ **Staff** | A department-scoped queue; start and resolve assigned work with proof |
+| 🛡️ **Admins** | Departments, categories, users, reassignment, overrides, refunds, analytics, audit logs |
+
+---
+
+## ✨ Features
+
+- 🔐 **JWT auth** (access + rotating refresh, httpOnly cookies or Bearer), **Google Sign-In**, email **OTP** registration and password reset
+- 🧱 **3 fixed roles** with a DB re-check on every request (blocked or deleted accounts are rejected even with a valid token)
+- 🔄 **Full request lifecycle** with status history, SLA clock, overdue flagging, reopen window and auto-close
+- 💳 **SSLCommerz + bKash** with server-side verification, idempotent completion, automatic refunds on cancel and manual retry
+- 🧾 **PDF receipts** (PDFKit), streamed on demand and emailed after payment
+- 🖼️ **Cloudinary** uploads (≤ 5 images × 5 MB per request)
+- 🔔 In-app **notifications** and 📧 transactional email via **EmailJS** + EJS templates
+- 📊 Admin **dashboard stats**, staff **performance** metrics, **audit log** of every privileged action
+- 🛡️ Helmet, CORS, Redis-backed **rate limiting** (global, login, OTP, contact), Zod validation, centralized error handler
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Category | Technology |
+| Layer | Technology |
 |---|---|
-| Runtime & Framework | Node.js, TypeScript, Express.js |
-| Database & ORM | PostgreSQL, Prisma ORM (`@prisma/adapter-pg`) |
-| Validation | Zod |
-| Authentication | JWT (access + refresh, Bearer token), Google OAuth (GCP) |
-| Caching / Temp State | Redis (OTP storage, rate-limit backing) |
-| File Storage | Multer (memory storage) + Cloudinary |
-| Email | Nodemailer (Gmail SMTP) + EJS templates |
-| Payments | SSLCommerz, bKash (Tokenized Checkout) |
-| Security | Helmet, express-rate-limit, cookie-parser, CORS |
-| Code Quality | Biome (lint + format) |
-| Deployment | **Render** (live) |
+| Runtime / Framework | Node.js 20+, Express 5, TypeScript (ESM, run with `tsx`) |
+| Database / ORM | PostgreSQL, Prisma 7 (`@prisma/adapter-pg`, multi-file schema) |
+| Cache / Rate limits | Redis (OTP storage, bKash token cache, `rate-limit-redis`) |
+| Validation | Zod 4 |
+| Auth | `jsonwebtoken`, `bcryptjs`, `google-auth-library` |
+| Files | Multer (memory) → Cloudinary |
+| Email | EmailJS REST API + EJS templates |
+| PDF | PDFKit |
+| Payments | SSLCommerz (`sslcommerz-lts`), bKash Tokenized Checkout |
+| Jobs | `node-cron` (server) / Vercel Cron (serverless) |
+| Quality | Biome (lint + format) |
 
 ---
 
 ## 👥 Roles & Permissions
 
-Nagar Sheba enforces **3 fixed roles** via a Bearer-token + `auth(...roles)` middleware, backed by a database re-check on every request (blocked/deleted accounts are rejected even with a valid token).
-
-| Role | Description | Key Permissions |
-|---|---|---|
-| **CITIZEN** | Reports issues and pays applicable fees | Create/cancel/reopen own requests, upload evidence, pay fees, leave feedback, manage own profile |
-| **STAFF** | Department field worker assigned to requests | View requests scoped to their own department, move an assigned request `ASSIGNED → IN_PROGRESS → RESOLVED`, attach resolution proof |
-| **ADMIN** | Platform operator | Manage departments & categories, provision staff/admin accounts, reassign/override any request status, block/unblock users, view audit logs & dashboard stats |
+| Role | Key permissions |
+|---|---|
+| **CITIZEN** | Create / cancel / reopen own requests, upload evidence, pay fees, leave feedback, download receipts, manage profile |
+| **STAFF** | See requests in **own department**; move **assigned** requests `ASSIGNED → IN_PROGRESS → RESOLVED`; upload resolution proof; view own performance |
+| **ADMIN** | Manage departments & categories, provision staff/admins, reassign, override status, block/unblock users, change roles, refund payments, view audit logs and stats |
 
 ---
 
-## 🔄 Core Workflow
+## 🧭 Architecture
+
+```mermaid
+flowchart LR
+    C[Client / Next.js] -->|/api/v1| A[Express 5]
+    A --> M["Middleware<br/>helmet · cors · rate-limit · auth · zod"]
+    M --> S["Module services<br/>auth · request · payment · admin ..."]
+    S --> DB[(PostgreSQL)]
+    S --> R[(Redis)]
+    S --> CL[Cloudinary]
+    S --> PG[SSLCommerz / bKash]
+    S --> EM[EmailJS]
+    J["Lifecycle job<br/>node-cron / Vercel Cron"] --> S
+```
+
+Each feature is a self-contained module: `route → validation → controller → service`.
 
 ```text
-Citizen
-   │
-   ▼
-Create Service Request  ──(PAID category)──▶  PENDING_PAYMENT ──▶ Payment Gateway
-   │                                                                    │
-   ▼ (FREE category)                                          success  │  fail/cancel
-SUBMITTED  ◀───────────────────────────────────────────────────────────┘
-   │
-   ▼ (Admin reassigns / Staff picks up)
-ASSIGNED  (SLA due date calculated from category.slaHours)
-   │
-   ▼
-IN_PROGRESS
-   │
-   ▼
-RESOLVED ──(citizen reopens within 3 days)──▶ ASSIGNED
-   │
-   ▼ (auto-closed after 3 days, or manually)
-CLOSED
-
-Citizen may CANCEL while PENDING_PAYMENT / SUBMITTED / ASSIGNED (triggers refund if paid)
-Admin may override status at any non-terminal point
+src/
+├─ server.ts                 # long-running entry (DB + Redis + cron)
+├─ app.ts                    # Express app, routes, error handling
+├─ seedRun.ts                # one-off seeding script
+└─ app/
+   ├─ config/                # env loader
+   ├─ errors/                # AppError
+   ├─ jobs/                  # requestLifecycle.job.ts
+   ├─ lib/                   # prisma, redis, bkash, sslcommerz, cloudinary, mailer, googleAuth, seed
+   ├─ middleware/            # auth, validateRequest, upload, rateLimiter, errors
+   ├─ module/                # admin · auth · category · department · feedback
+   │                         # notification · payment · public · request
+   ├─ templates/             # EJS email templates
+   └─ utils/                 # jwt, catchAsync, sendResponse, receiptPdf, cloudinary upload
+api/index.ts                 # Vercel serverless entry
+prisma/schema/*.prisma       # multi-file schema
 ```
 
-A background job (`requestLifecycleJob`, runs every 15 minutes) automatically:
-- Flags any non-terminal request as **overdue** once its `slaDueAt` passes.
-- Auto-closes a `RESOLVED` request into `CLOSED` after the 3-day citizen response window elapses.
+---
+
+## 🔄 Request Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING_PAYMENT: PAID category
+    [*] --> SUBMITTED: FREE category
+    PENDING_PAYMENT --> SUBMITTED: payment verified
+    PENDING_PAYMENT --> CANCELLED
+    SUBMITTED --> ASSIGNED: admin assigns staff (SLA starts)
+    SUBMITTED --> CANCELLED
+    ASSIGNED --> IN_PROGRESS: staff starts
+    ASSIGNED --> CANCELLED
+    IN_PROGRESS --> RESOLVED: note required
+    RESOLVED --> ASSIGNED: citizen reopens (≤ 3 days)
+    RESOLVED --> CLOSED: auto-close after 3 days
+    CLOSED --> [*]
+    CANCELLED --> [*]
+```
+
+| Rule | Detail |
+|---|---|
+| ⏱️ SLA | Starts on **Assigned**: `slaDueAt = now + category.slaHours` |
+| 🚩 Overdue | Non-terminal requests past `slaDueAt` are flagged by the lifecycle job |
+| 🔁 Reopen | Only `RESOLVED`, within 3 days, with a reason; SLA restarts |
+| 🔒 Auto-close | `RESOLVED` → `CLOSED` after 3 days with no citizen action |
+| 💸 Cancel | Allowed in `PENDING_PAYMENT`, `SUBMITTED`, `ASSIGNED`; paid requests trigger an automatic refund |
+| 🛡️ Admin override | Cannot set `CANCELLED`/`PENDING_PAYMENT`; assigning needs the reassign flow; every override is audit-logged |
 
 ---
 
-## 🗄️ Database Design
+## 🗄️ Database
 
-PostgreSQL via Prisma, modeled with a multi-file schema (`prisma/schema/*.prisma`). Key entities:
+```mermaid
+erDiagram
+    USER ||--o| CITIZEN_PROFILE : has
+    USER ||--o| STAFF_PROFILE : has
+    USER ||--o| ADMIN_PROFILE : has
+    DEPARTMENT ||--o{ CATEGORY : owns
+    DEPARTMENT ||--o{ STAFF_PROFILE : employs
+    CATEGORY ||--o{ SERVICE_REQUEST : classifies
+    USER ||--o{ SERVICE_REQUEST : files
+    SERVICE_REQUEST ||--o{ STATUS_HISTORY : tracks
+    SERVICE_REQUEST ||--o{ ATTACHMENT : contains
+    SERVICE_REQUEST ||--o| PAYMENT : "paid by"
+    SERVICE_REQUEST ||--o| FEEDBACK : "rated by"
+    USER ||--o{ NOTIFICATION : receives
+    USER ||--o{ AUDIT_LOG : performs
+```
 
-- **User** — single table for all 3 roles, linked 1:1 to exactly one profile (`CitizenProfile` / `StaffProfile` / `AdminProfile`) based on `role`.
-- **Department** → **Category** (fee type, SLA hours) → **ServiceRequest**.
-- **ServiceRequest** — the central entity: tracking reference, geolocation, status, SLA due date, overdue flag, soft delete.
-- **StatusHistory** — full audit trail of every status transition (`fromStatus → toStatus`, actor, note).
-- **Payment** — 1:1 with a `ServiceRequest`, tracks provider, provider reference, amount, status, paid/refunded timestamps.
-- **Attachment** — evidence (citizen) or resolution proof (staff), stored on Cloudinary.
-- **Feedback** — 1:1 rating + comment, only allowed after `RESOLVED`/`CLOSED`.
-- **AuditLog** — actor, action, entity, before/after snapshot — written for all admin-level overrides (status overrides, reassignments, user blocking, staff provisioning).
-- **Notification** — in-app/email notification log.
-
-All list-heavy tables carry indexes on their most-queried columns (`status`, `citizenId`, `departmentId`, `assignedStaffId`, `categoryId`, `isOverdue`, `createdAt`) and soft-deletes use a nullable `deletedAt` timestamp rather than hard deletes.
+- One `User` table for all roles, linked 1:1 to exactly one profile.
+- Soft deletes via nullable `deletedAt`; indexes on hot columns (`status`, `citizenId`, `departmentId`, `assignedStaffId`, `isOverdue`, `(userId, isRead)`).
+- Enums: `Role`, `AccountStatus`, `AuthProvider`, `FeeType`, `RequestStatus`, `PaymentProvider`, `PaymentStatus`, `AttachmentType`, `NotificationChannel`.
 
 ---
 
-## 📡 API Overview
+## 📡 API Reference
 
-Base path: `/api/v1`. All protected routes require `Authorization: Bearer <accessToken>` (falls back to an httpOnly cookie).
+Base path: **`/api/v1`**. Protected routes accept `Authorization: Bearer <accessToken>` or the `accessToken` httpOnly cookie. **58 endpoints** plus a health check and a cron hook.
 
-**Live base URL:** `https://nagar-sheba-backend.onrender.com/api/v1`
+<details open>
+<summary><b>🔐 Auth</b> <code>/auth</code></summary>
 
-### Auth (`/auth`)
-| Method | Endpoint | Access |
+| Method | Path | Access |
 |---|---|---|
-| POST | `/register` | Public — starts OTP-based citizen registration |
-| POST | `/verify-email` | Public — verifies OTP, creates account, returns tokens |
-| POST | `/google-login` | Public — Google ID token sign-in/sign-up |
+| POST | `/register` | Public — starts OTP registration |
+| POST | `/verify-email` | Public — verifies OTP, creates account, sets cookies |
+| POST | `/resend-otp` | Public (60 s cooldown) |
+| POST | `/google-login` | Public — Google ID token |
 | POST | `/login` | Public |
-| POST | `/forgot-password` | Public — sends OTP |
-| POST | `/reset-password` | Public — verifies OTP + sets new password |
-| GET | `/me` | Authenticated |
-| PATCH | `/me` | Authenticated — update profile |
-| PATCH | `/me/profile-image` | Authenticated — Cloudinary upload |
-| POST | `/refresh-token` | Public (needs valid refresh cookie) |
+| POST | `/forgot-password` · `/reset-password` | Public (OTP) |
+| POST | `/refresh-token` | Cookie or body |
 | POST | `/logout` | Public |
+| GET · PATCH | `/me` | Authenticated |
+| PATCH | `/me/profile-image` | Authenticated (multipart `profileImage`) |
+| POST | `/change-password` | Authenticated |
+</details>
 
-### Departments (`/departments`)
-| Method | Endpoint | Access |
+<details>
+<summary><b>🏢 Departments & Categories</b> <code>/departments</code> · <code>/categories</code></summary>
+
+| Method | Path | Access |
 |---|---|---|
-| GET | `/` | Authenticated — paginated |
-| GET | `/:id` | Authenticated |
+| GET | `/` · `/:id` | Public (optional auth; admins may `includeInactive=true`) |
 | POST | `/` | Admin |
 | PATCH | `/:id` | Admin |
-| DELETE | `/:id` | Admin — soft delete |
+| DELETE | `/:id` | Admin — soft delete (departments blocked while categories/staff/open requests exist) |
 
-### Categories (`/categories`)
-| Method | Endpoint | Access |
-|---|---|---|
-| GET | `/` | Authenticated — paginated, filter by `departmentId` |
-| GET | `/:id` | Authenticated |
-| POST | `/` | Admin |
-| PATCH | `/:id` | Admin |
-| DELETE | `/:id` | Admin — soft delete |
+Category list supports `departmentId` filter. Paid categories require `feeAmount`; `slaHours` is 1–720.
+</details>
 
-### Service Requests (`/requests`)
-| Method | Endpoint | Access |
-|---|---|---|
-| POST | `/` | Citizen — multipart, up to 5 attachments |
-| GET | `/` | Authenticated — paginated, filter by status/department/category/overdue, sortable |
-| GET | `/search?q=` | Authenticated — search by title/tracking ref |
-| GET | `/:id` | Authenticated — scoped by role |
-| POST | `/:id/cancel` | Citizen (owner only) |
-| PATCH | `/:id/status` | Staff (assigned only) / Admin (override) |
-| PATCH | `/:id/reassign` | Admin |
-| POST | `/:id/reopen` | Citizen (owner only, within 3-day window) |
-| POST | `/:id/attachments` | Authenticated — role-scoped attachment type |
+<details>
+<summary><b>📝 Service Requests</b> <code>/requests</code></summary>
 
-### Payments (`/payments`)
-| Method | Endpoint | Access |
+| Method | Path | Access |
 |---|---|---|
-| POST | `/initiate` | Citizen — creates/recreates a checkout session |
+| POST | `/` | Citizen — multipart, up to 5 `attachments` |
+| GET | `/` | Authenticated — scoped by role; filters: `status`, `categoryId`, `departmentId` (admin), `assigned=me\|unassigned`, `overdue`, `sortBy`, `sortOrder`, `page`, `limit` |
+| GET | `/search?q=` | Authenticated — title / tracking ref |
+| GET | `/performance/me` | Staff |
 | GET | `/:id` | Authenticated — scoped |
-| GET | `/` | Authenticated — paginated, filterable, sortable |
+| POST | `/:id/cancel` | Citizen (owner) |
+| PATCH | `/:id/status` | Staff (assigned) / Admin (override) |
+| PATCH | `/:id/reassign` | Admin |
+| POST | `/:id/reopen` | Citizen (owner, ≤ 3 days) |
+| POST | `/:id/attachments` | Authenticated — type enforced by role |
+</details>
+
+<details>
+<summary><b>💳 Payments</b> <code>/payments</code></summary>
+
+| Method | Path | Access |
+|---|---|---|
+| POST | `/initiate` | Citizen — `SSLCOMMERZ` or `BKASH` |
+| GET | `/` · `/:id` | Authenticated (citizen: own, admin: all, staff: denied) |
+| GET | `/:id/receipt` | Citizen / Admin — PDF |
 | PATCH | `/:id/refund` | Admin — manual refund retry |
 | POST | `/sslcommerz/ipn` | Public webhook |
-| POST | `/sslcommerz/success` \| `/fail` \| `/cancel` | Public redirect handlers |
+| ALL | `/sslcommerz/success` · `/fail` · `/cancel` | Public redirects |
 | GET | `/bkash/callback` | Public callback |
+</details>
 
-### Feedback (`/feedbacks`)
-| Method | Endpoint | Access |
+<details>
+<summary><b>⭐ Feedback · 🔔 Notifications · 🛡️ Admin · 🌍 Public</b></summary>
+
+| Method | Path | Access |
 |---|---|---|
-| POST | `/` | Citizen — only on resolved/closed own requests |
-| GET | `/` | Authenticated — scoped, filterable |
-| GET | `/:requestId` | Authenticated — scoped |
+| POST | `/feedbacks` | Citizen — only on own `RESOLVED`/`CLOSED` request, once |
+| GET | `/feedbacks` · `/feedbacks/:requestId` | Authenticated, scoped |
+| GET | `/notifications/me` · `/unread-count` | Authenticated |
+| PATCH | `/notifications/:id/read` · `/read-all` | Authenticated |
+| POST | `/admin/staff` | Admin — provisions STAFF/ADMIN with emailed temp password |
+| GET | `/admin/users` | Admin — filter by `role`, `status`, `search` |
+| PATCH | `/admin/users/:id/status` · `/role` | Admin — block/unblock, STAFF ↔ ADMIN |
+| GET | `/admin/audit-logs` · `/admin/dashboard-stats` | Admin |
+| GET | `/public/stats` | Public |
+| POST | `/public/contact` | Public (rate-limited) |
+| GET | `/internal/lifecycle` | `Authorization: Bearer $CRON_SECRET` |
+</details>
 
-### Admin (`/admin`)
-| Method | Endpoint | Access |
-|---|---|---|
-| POST | `/staff` | Admin — provisions STAFF/ADMIN accounts with a temp password |
-| GET | `/users` | Admin — paginated, filterable, searchable |
-| PATCH | `/users/:id/status` | Admin — block/unblock |
-| PATCH | `/users/:id/role` | Admin — change STAFF ↔ ADMIN role |
-| GET | `/audit-logs` | Admin — paginated, filterable |
-| GET | `/dashboard-stats` | Admin — user/request/payment/feedback aggregates |
+📎 A Postman collection is included in the repo root. Set `baseUrl` to the live API or `http://localhost:5000`.
 
-### Notifications (`/notifications`)
-| Method | Endpoint | Access |
-|---|---|---|
-| GET | `/me` | Authenticated — paginated |
-| GET | `/unread-count` | Authenticated |
-| PATCH | `/:id/read` | Authenticated |
-| PATCH | `/read-all` | Authenticated |
+**Response envelope**
 
-**48 endpoints total** — well above the 20-endpoint minimum.
+```jsonc
+// success
+{ "success": true, "statusCode": 200, "message": "...", "data": {}, "meta": { "page": 1, "limit": 10, "total": 42, "totalPages": 5 } }
 
-📎 Postman Collection: **`Nagar Sheba - City Complaint & Service Platform.postman_collection.json`** (included in the repo root). Import it into Postman, set the `baseUrl` collection variable to `https://nagar-sheba-backend.onrender.com` (or `http://localhost:5000` locally), then run **Login** or **Verify Email** to obtain an access token.
+// error
+{ "success": false, "statusCode": 400, "name": "AppError", "message": "Validation failed",
+  "errors": [{ "path": "email", "message": "Please provide a valid email address." }] }
+```
+
+Stack traces and internal error details are exposed **only** in `development`.
 
 ---
 
-## 📦 Response Format
+## 💳 Payments
 
-**Success**
-```json
-{
-  "success": true,
-  "statusCode": 200,
-  "message": "Service request fetched successfully",
-  "data": { },
-  "meta": { "page": 1, "limit": 10, "total": 42, "totalPages": 5 }
-}
-```
-
-**Error**
-```json
-{
-  "success": false,
-  "statusCode": 400,
-  "message": "Validation failed",
-  "errors": [
-    { "path": "email", "message": "Please provide a valid email address." }
-  ]
-}
-```
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Node.js 20+
-- PostgreSQL database
-- Redis instance
-- Cloudinary account
-- SSLCommerz sandbox credentials and/or bKash sandbox credentials
-- Google OAuth Client ID (for social login)
-- Gmail account with an App Password (for Nodemailer)
-
-### Installation
-
-```bash
-git clone https://github.com/<your-username>/nagar-sheba-backend.git
-cd nagar-sheba-backend
-npm install
-```
-
-### Configure environment
-
-```bash
-cp .env.example .env
-# fill in every value — see the table below
-```
-
-### Database setup
-
-```bash
-npx prisma generate
-npx prisma migrate deploy   # applies existing migrations
-```
-
-The admin account, staff accounts, departments, and categories are seeded automatically on server start (see `src/app/lib/seed.ts`) — no separate seed command is needed.
-
-### Run
-
-```bash
-npm run dev      # tsx watch — local development
-npm run build    # tsc — compile to dist/
-npm start        # node dist/src/server.js — production
-```
-
-### Code quality
-
-```bash
-npm run lint:check
-npm run format:check
-```
-
----
-
-## 🔐 Environment Variables
-
-All variables required by `src/app/config/index.ts`. See `.env.example` for the full template — **never commit real values**.
-
-| Variable | Purpose |
-|---|---|
-| `NODE_ENV`, `PORT` | Runtime environment |
-| `DATABASE_URL` | PostgreSQL connection string |
-| `BACKEND_URL`, `FRONTEND_URL` | Used to build absolute callback URLs and CORS origin |
-| `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN` | Auth tokens |
-| `GOOGLE_CLIENT_ID` | Google OAuth verification |
-| `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `STAFF_PASSWORD` | Seed credentials |
-| `BCRYPT_SALT_ROUNDS` | Password hashing cost |
-| `REDIS_USERNAME`, `REDIS_PASSWORD`, `REDIS_HOST`, `REDIS_PORT` | Redis connection |
-| `SMTP_USER`, `SMTP_SENDER`, `SMTP_PASSWORD` | Nodemailer (Gmail App Password) |
-| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | File uploads |
-| `SSLCOMMERZ_STORE_ID`, `SSLCOMMERZ_STORE_PASSWORD`, `SSLCOMMERZ_IS_LIVE` | SSLCommerz gateway |
-| `BKASH_BASE_URL`, `BKASH_USERNAME`, `BKASH_PASSWORD`, `BKASH_APP_KEY`, `BKASH_APP_SECRET` | bKash Tokenized Checkout |
-
-> ⚠️ If any of these values are ever pasted somewhere public (chat, issue tracker, etc.), rotate them immediately.
-
-On Render, `BACKEND_URL` is set to `https://nagar-sheba-backend.onrender.com` so that SSLCommerz/bKash callback URLs and cookie settings resolve correctly in production.
-
----
-
-## 💳 Payment Integration
-
-- A `ServiceRequest` under a `PAID` category is created in `PENDING_PAYMENT` status with `feeCharged` set from the category.
-- `POST /payments/initiate` creates a checkout session with **SSLCommerz** or **bKash**, storing a `Payment` row (`PENDING`) keyed by a unique `providerRef`.
-- **SSLCommerz**: verified via IPN webhook *and* the success/fail/cancel redirect handlers (idempotent — both paths call the same `verifySSLCommerzAndComplete`, which re-validates the transaction with SSLCommerz and checks the amount before marking it complete).
-- **bKash**: a single callback endpoint differentiates success/failure/cancel by query param, then calls `executePayment` and cross-checks `transactionStatus` and amount before completing.
-- On successful verification, `Payment.status → COMPLETED` and `ServiceRequest.status → SUBMITTED` are updated **in the same transaction**, with a `StatusHistory` row recorded.
-- Cancelling a request that was already paid triggers an automatic refund attempt (`refundPaymentForRequest`) via the same provider, without blocking the cancellation itself if the refund call fails. A failed automatic refund is recorded as a `PAYMENT_REFUND_FAILED` audit log entry, which an Admin can locate and retry via `PATCH /payments/:id/refund`.
+1. A request in a `PAID` category is created as `PENDING_PAYMENT` with `feeCharged`; a checkout session is opened automatically (SSLCommerz by default).
+2. `POST /payments/initiate` creates or recreates a session and stores a `Payment` (`PENDING`) with a unique `providerRef`.
+3. **SSLCommerz**: IPN and success redirect both call one idempotent verifier that re-validates `val_id`, amount and currency (BDT).
+4. **bKash**: one callback; the server calls `executePayment` and checks `transactionStatus === "Completed"` and amount.
+5. On success, `Payment → COMPLETED`, `Request → SUBMITTED` and a `StatusHistory` row are written **in one transaction**; the citizen gets a notification and an emailed PDF receipt.
+6. A payment that completes after the request left `PENDING_PAYMENT` is auto-refunded.
+7. Cancelling a paid request attempts an automatic refund without blocking the cancel; failures are audit-logged as `PAYMENT_REFUND_FAILED` and can be retried via `PATCH /payments/:id/refund`.
 
 ---
 
 ## ⏱️ Background Jobs
 
-`runRequestLifecycleJob` runs once at startup and then every 15 minutes:
-1. **Flag overdue requests** — any non-terminal request past its `slaDueAt` is marked `isOverdue: true`.
-2. **Auto-close resolved requests** — any `RESOLVED` request untouched by the citizen for 3 days is transitioned to `CLOSED` with a `StatusHistory` entry.
+`runRequestLifecycleJob` does two things:
+
+1. **Flag overdue** non-terminal requests past `slaDueAt`.
+2. **Auto-close** `RESOLVED` requests older than 3 days (with a `StatusHistory` entry).
+
+| Environment | Trigger |
+|---|---|
+| Long-running server (Render, VPS) | On startup + `node-cron` every **15 minutes** |
+| Vercel (serverless) | Vercel Cron → `GET /api/v1/internal/lifecycle` (daily in `vercel.json`), secured by `CRON_SECRET` |
+
+---
+
+## 🚀 Getting Started
+
+**Prerequisites:** Node.js 20+, PostgreSQL, Redis, Cloudinary, SSLCommerz / bKash sandbox credentials, a Google OAuth client ID, an EmailJS account.
+
+```bash
+git clone https://github.com/parety308/Nagar-Sheba.git
+cd Nagar-Sheba
+npm install                 # also runs `prisma generate`
+cp .env.example .env        # fill in every value
+npx prisma migrate deploy   # apply migrations
+npm run seed                # departments, categories, admin, staff, demo citizen + sample data
+npm run dev                 # http://localhost:5000
+```
+
+| Script | Description |
+|---|---|
+| `npm run dev` | `tsx watch` — local development |
+| `npm start` | `tsx src/server.ts` — production |
+| `npm run build` | `prisma generate` |
+| `npm run seed` | `tsx src/seedRun.ts` (set `SEED_DEMO_DATA=false` to skip sample requests) |
+| `npm run lint:check` · `format:check` · `lint:fix` | Biome |
+
+> Add `"seed": "tsx src/seedRun.ts"` to `package.json` scripts if it is not there yet.
+
+**Seeded data:** 4 departments (Roads, Waste, Water, Licensing), 7 categories (free complaints + paid permits), 1 admin, 4 staff (one per department), 1 demo citizen, and 15 sample requests across all statuses.
+
+---
+
+## 🔐 Environment Variables
+
+Copy `.env.example` — **never commit real values.**
+
+| Group | Variables |
+|---|---|
+| Runtime | `NODE_ENV`, `PORT`, `BACKEND_URL`, `FRONTEND_URL` (CORS origin + redirects) |
+| Database | `DATABASE_URL` |
+| Auth | `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN`, `BCRYPT_SALT_ROUNDS`, `GOOGLE_CLIENT_ID` |
+| Seed | `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `STAFF_PASSWORD`, `DEMO_CITIZEN_EMAIL/PASSWORD`, `DEMO_ADMIN_EMAIL/PASSWORD`, `SEED_DEMO_DATA` |
+| Redis | `REDIS_USERNAME`, `REDIS_PASSWORD`, `REDIS_HOST`, `REDIS_PORT` |
+| Email | `EMAILJS_SERVICE_ID`, `EMAILJS_TEMPLATE_ID`, `EMAILJS_PUBLIC_KEY`, `EMAILJS_PRIVATE_KEY`, `CONTACT_RECEIVER_EMAIL` |
+| Uploads | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` |
+| Payments | `SSLCOMMERZ_STORE_ID`, `SSLCOMMERZ_STORE_PASSWORD`, `SSLCOMMERZ_IS_LIVE`, `BKASH_BASE_URL`, `BKASH_USERNAME`, `BKASH_PASSWORD`, `BKASH_APP_KEY`, `BKASH_APP_SECRET` |
+| Cron | `CRON_SECRET` |
+
+> `BACKEND_URL` must be **publicly reachable** — SSLCommerz and bKash call it back.
+
+---
+
+## ☁️ Deployment
+
+**Render / VPS (long-running):** build `npm install && npm run build`, start `npm start`. Set all env vars, `BACKEND_URL` to the service URL and `FRONTEND_URL` to the frontend origin. Run `npx prisma migrate deploy` on release.
+
+**Vercel (serverless):** `vercel.json` rewrites all traffic to `api/index.ts`. Set `CRON_SECRET`; node-cron does not run there, so Vercel Cron calls the internal lifecycle route instead.
 
 ---
 
 ## 🔒 Security
 
-- Passwords hashed with bcrypt (configurable salt rounds).
-- JWT Bearer access tokens + rotating refresh tokens (httpOnly cookies as a fallback transport).
-- Role-based middleware re-validates the user against the database on every request (rejects blocked/deleted accounts even with a still-valid token).
-- `helmet` for security headers, `cors` locked to `FRONTEND_URL`, global + endpoint-specific (`otpLimiter`, `loginLimiter`) rate limiting, backed by Redis so limits are shared across serverless instances.
-- Centralized error handler normalizes Prisma, Multer, Zod, and generic errors into the standard error response shape without leaking internals in production.
+- Passwords hashed with bcrypt; OTPs are 6 digits, stored in Redis for 5 minutes, with verify and resend limits.
+- Access + refresh JWTs in `httpOnly` cookies (`secure` + `sameSite=none` in production).
+- DB re-validation on every authenticated request; email/role changes invalidate sessions.
+- Forgot-password responses are identical whether or not the account exists.
+- Rate limits: global 1500/15 min, login 10/15 min, OTP 5/15 min, OTP verify 10/15 min, contact 5/15 min.
+- Payment amounts and currency are verified server-side; callbacks are idempotent.
+- Demo-account passwords cannot be changed through the API; protected admin accounts cannot be demoted.
+- 🚨 If any secret is ever pasted into a chat, issue, or commit, **rotate it immediately**.
 
 ---
 
+<div align="center">
 
-> ⚠️ Use dedicated demo credentials for evaluation, never real production secrets. If the demo admin credentials above are ever exposed publicly, rotate `ADMIN_PASSWORD` in the Render environment settings and restart the service.
+Built as a **City Complaint & Service Platform** · Made with ❤️ for better cities
+
+</div>
