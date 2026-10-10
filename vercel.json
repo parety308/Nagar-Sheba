@@ -1,4 +1,15 @@
+
 {
-	"rewrites": [{ "source": "/(.*)", "destination": "/api" }],
-	"crons": [{ "path": "/api/v1/internal/lifecycle", "schedule": "*/15 * * * *" }]
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/v1/internal/lifecycle",
+      "schedule": "0 0 * * *"
+    }
+  ]
 }
