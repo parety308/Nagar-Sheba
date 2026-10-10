@@ -9,13 +9,13 @@ import {
 import config from "../../config";
 import { AppError } from "../../errors/AppError";
 import { bkashClient } from "../../lib/bkash";
+import { transport } from "../../lib/nodemailer";
 import { prisma } from "../../lib/prisma";
 import { createSSLCommerzInstance } from "../../lib/sslcommerz";
+import { buildReceiptPdfBuffer } from "../../utils/receiptPdf";
 import { IRequestUser } from "../auth/auth.interface";
 import { NotificationService } from "../notification/notification.service";
 import { IPaymentQuery, TRequestForPayment } from "./payment.interface";
-import { transport } from "../../lib/nodemailer";
-import { buildReceiptPdfBuffer } from "../../utils/receiptPdf";
 
 const FRONTEND = (config.frontend_url ?? "").replace(/\/$/, "");
 
@@ -296,7 +296,7 @@ const completePayment = async (paymentId: string) => {
 		type: "PAYMENT_COMPLETED",
 		message: `Your payment of ${payment.amount} BDT was completed successfully.`,
 	});
-	void sendReceiptEmail(payment.id); 
+	void sendReceiptEmail(payment.id);
 };
 
 const failPaymentIfPending = async (paymentId: string) => {
@@ -777,5 +777,5 @@ export const PaymentService = {
 	manualRefundPayment,
 	getSinglePayment,
 	getAllPayments,
-	getReceiptData
+	getReceiptData,
 };

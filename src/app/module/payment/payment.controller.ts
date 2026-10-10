@@ -2,10 +2,10 @@ import { Request, Response } from "express";
 import httpStatus from "http-status";
 import config from "../../config";
 import { catchAsync } from "../../utils/catchAsync";
+import { buildReceiptPdf } from "../../utils/receiptPdf";
 import { sendResponse } from "../../utils/sendResponse";
 import { IRequestUser } from "../auth/auth.interface";
 import { PaymentService } from "./payment.service";
-import { buildReceiptPdf } from "../../utils/receiptPdf";
 
 const initiatePayment = catchAsync(async (req: Request, res: Response) => {
 	const actor = req.user as IRequestUser;
@@ -167,5 +167,5 @@ export const PaymentController = {
 	manualRefundPayment,
 	getSinglePayment,
 	getAllPayments,
-	downloadReceipt
+	downloadReceipt,
 };

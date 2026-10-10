@@ -1,9 +1,8 @@
-import config from "../config";
-
 // sslcommerz-lts ships no type declarations, and Vercel's build ignores
 // ambient .d.ts files. Suppress the error here and type the client ourselves.
 // @ts-ignore
 import SSLCommerzPaymentRaw from "sslcommerz-lts";
+import config from "../config";
 
 export interface SSLCommerzClient {
 	init(data: Record<string, unknown>): Promise<{

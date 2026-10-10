@@ -766,70 +766,65 @@ const updateMyProfile = async (
 	return safeUser;
 };
 
-
 const DEMO_EMAILS = [
-  config.demo_admin.email,
-  config.demo_citizen.email,
-  "staff.roads@nagar-sheba.com",
-  "staff.waste@nagar-sheba.com",
-  "staff.water@nagar-sheba.com",
-  "staff.licensing@nagar-sheba.com",
+	config.demo_admin.email,
+	config.demo_citizen.email,
+	"staff.roads@nagar-sheba.com",
+	"staff.waste@nagar-sheba.com",
+	"staff.water@nagar-sheba.com",
+	"staff.licensing@nagar-sheba.com",
 ].map((email) => email.toLowerCase());
 
 const changePassword = async (
-  user: IRequestUser,
-  payload: IChangePasswordPayload,
+	user: IRequestUser,
+	payload: IChangePasswordPayload,
 ) => {
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.userId },
-  });
+	const dbUser = await prisma.user.findUnique({
+		where: { id: user.userId },
+	});
 
-  if (!dbUser) {
-    throw new AppError(httpStatus.NOT_FOUND, "User not found");
-  }
+	if (!dbUser) {
+		throw new AppError(httpStatus.NOT_FOUND, "User not found");
+	}
 
-  // Prevent changes to shared demo account passwords.
-  if (DEMO_EMAILS.includes(dbUser.email.toLowerCase())) {
-    throw new AppError(
-      httpStatus.FORBIDDEN,
-      "Demo account passwords cannot be changed",
-    );
-  }
+	// Prevent changes to shared demo account passwords.
+	if (DEMO_EMAILS.includes(dbUser.email.toLowerCase())) {
+		throw new AppError(
+			httpStatus.FORBIDDEN,
+			"Demo account passwords cannot be changed",
+		);
+	}
 
-  if (!dbUser.passwordHash) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      "This account does not use a password.",
-    );
-  }
+	if (!dbUser.passwordHash) {
+		throw new AppError(
+			httpStatus.BAD_REQUEST,
+			"This account does not use a password.",
+		);
+	}
 
-  const matches = await bcrypt.compare(
-    payload.currentPassword,
-    dbUser.passwordHash,
-  );
+	const matches = await bcrypt.compare(
+		payload.currentPassword,
+		dbUser.passwordHash,
+	);
 
-  // 400 (not 401) so the frontend doesn't treat it as an expired session.
-  if (!matches) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      "Current password is incorrect",
-    );
-  }
+	// 400 (not 401) so the frontend doesn't treat it as an expired session.
+	if (!matches) {
+		throw new AppError(httpStatus.BAD_REQUEST, "Current password is incorrect");
+	}
 
-  await prisma.user.update({
-    where: { id: dbUser.id },
-    data: {
-      passwordHash: await bcrypt.hash(
-        payload.newPassword,
-        config.bcrypt_salt_rounds,
-      ),
-      mustChangePassword: false,
-    },
-  });
+	await prisma.user.update({
+		where: { id: dbUser.id },
+		data: {
+			passwordHash: await bcrypt.hash(
+				payload.newPassword,
+				config.bcrypt_salt_rounds,
+			),
+			mustChangePassword: false,
+		},
+	});
 
-  return { message: "Password changed successfully." };
+	return { message: "Password changed successfully." };
 };
-
 
 const resendRegistrationOtp = async (rawEmail: string) => {
 	const email = rawEmail.trim().toLowerCase();
@@ -893,5 +888,5 @@ export const AuthService = {
 	updateProfileImage,
 	updateMyProfile,
 	changePassword,
-	resendRegistrationOtp
+	resendRegistrationOtp,
 };

@@ -7,10 +7,10 @@ import httpStatus from "http-status";
 import { RedisStore } from "rate-limit-redis";
 
 import config from "./app/config";
+import { runRequestLifecycleJob } from "./app/jobs/requestLifecycle.job";
 import { redisClient } from "./app/lib/redis";
 import { globalErrorHandler } from "./app/middleware/globalErrorHandler";
 import { notFound } from "./app/middleware/notFound";
-import { runRequestLifecycleJob } from "./app/jobs/requestLifecycle.job";
 
 import { AdminRoutes } from "./app/module/admin/admin.route";
 import { AuthRoutes } from "./app/module/auth/auth.route";
@@ -32,28 +32,26 @@ app.use(helmet());
 
 // Global rate limiter
 app.use(
-    rateLimit({
-        windowMs: 15 * 60 * 1000,
-        max: 1500,
-        standardHeaders: true,
-        legacyHeaders: false,
-        skip: (req: Request) =>
-            req.path === "/api/v1/auth/me" ||
-            req.path === "/auth/me",
-        store: new RedisStore({
-            sendCommand: (...args: string[]) =>
-                redisClient.sendCommand(args),
-            prefix: "rl:global:",
-        }),
-    }),
+	rateLimit({
+		windowMs: 15 * 60 * 1000,
+		max: 1500,
+		standardHeaders: true,
+		legacyHeaders: false,
+		skip: (req: Request) =>
+			req.path === "/api/v1/auth/me" || req.path === "/auth/me",
+		store: new RedisStore({
+			sendCommand: (...args: string[]) => redisClient.sendCommand(args),
+			prefix: "rl:global:",
+		}),
+	}),
 );
 
 // CORS
 app.use(
-    cors({
-        origin: config.frontend_url,
-        credentials: true,
-    }),
+	cors({
+		origin: config.frontend_url,
+		credentials: true,
+	}),
 );
 
 // Body parsers and cookies
@@ -74,33 +72,33 @@ app.use("/api/v1/public", PublicRoutes);
 
 // Internal cron route
 app.get("/api/v1/internal/lifecycle", async (req, res, next) => {
-    if (
-        !process.env.CRON_SECRET ||
-        req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`
-    ) {
-        return res.status(401).json({
-            success: false,
-            message: "Unauthorized",
-        });
-    }
+	if (
+		!process.env.CRON_SECRET ||
+		req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`
+	) {
+		return res.status(401).json({
+			success: false,
+			message: "Unauthorized",
+		});
+	}
 
-    try {
-        await runRequestLifecycleJob();
+	try {
+		await runRequestLifecycleJob();
 
-        return res.status(200).json({
-            success: true,
-        });
-    } catch (error) {
-        return next(error);
-    }
+		return res.status(200).json({
+			success: true,
+		});
+	} catch (error) {
+		return next(error);
+	}
 });
 
 // Health check
 app.get("/", (_req: Request, res: Response) => {
-    res.status(httpStatus.OK).json({
-        success: true,
-        message: "Welcome to Nagar Sheba",
-    });
+	res.status(httpStatus.OK).json({
+		success: true,
+		message: "Welcome to Nagar Sheba",
+	});
 });
 
 // Error handling

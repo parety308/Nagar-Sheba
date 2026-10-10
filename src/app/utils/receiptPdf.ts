@@ -37,10 +37,25 @@ const STATUS_STYLE: Record<
 	{ label: string; fg: string; bg: string; border: string }
 > = {
 	COMPLETED: { label: "PAID", fg: "#15803d", bg: "#dcfce7", border: "#86efac" },
-	REFUNDED: { label: "REFUNDED", fg: "#6d28d9", bg: "#ede9fe", border: "#c4b5fd" },
-	PENDING: { label: "PENDING", fg: "#b45309", bg: "#fef3c7", border: "#fcd34d" },
+	REFUNDED: {
+		label: "REFUNDED",
+		fg: "#6d28d9",
+		bg: "#ede9fe",
+		border: "#c4b5fd",
+	},
+	PENDING: {
+		label: "PENDING",
+		fg: "#b45309",
+		bg: "#fef3c7",
+		border: "#fcd34d",
+	},
 	FAILED: { label: "FAILED", fg: "#b91c1c", bg: "#fee2e2", border: "#fca5a5" },
-	CANCELLED: { label: "CANCELLED", fg: "#475569", bg: "#f1f5f9", border: "#cbd5e1" },
+	CANCELLED: {
+		label: "CANCELLED",
+		fg: "#475569",
+		bg: "#f1f5f9",
+		border: "#cbd5e1",
+	},
 };
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -176,7 +191,10 @@ const table = (
 		y += rowH;
 	});
 
-	doc.roundedRect(M, top, CONTENT_W, y - top, 8).lineWidth(1).stroke(C.line);
+	doc
+		.roundedRect(M, top, CONTENT_W, y - top, 8)
+		.lineWidth(1)
+		.stroke(C.line);
 	return y;
 };
 

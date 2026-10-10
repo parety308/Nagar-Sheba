@@ -203,6 +203,5 @@ export const RequestController = {
 	reassignRequest,
 	reopenRequest,
 	addAttachments,
-	getStaffPerformance
-	
+	getStaffPerformance,
 };

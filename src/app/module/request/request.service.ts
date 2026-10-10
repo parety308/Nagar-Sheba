@@ -936,9 +936,8 @@ const getStaffPerformance = async (staffId: string) => {
 	const withSla = finished.filter((r) => r.slaDueAt);
 	const onTimeRate = withSla.length
 		? Math.round(
-				(withSla.filter(
-					(r) => r.resolvedAt!.getTime() <= r.slaDueAt!.getTime(),
-				).length /
+				(withSla.filter((r) => r.resolvedAt!.getTime() <= r.slaDueAt!.getTime())
+					.length /
 					withSla.length) *
 					100,
 			)
@@ -964,5 +963,5 @@ export const RequestService = {
 	reassignRequest,
 	reopenRequest,
 	addAttachmentsToRequest,
-	getStaffPerformance
+	getStaffPerformance,
 };

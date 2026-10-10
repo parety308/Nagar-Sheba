@@ -286,5 +286,5 @@ export const AuthController = {
 	updateProfileImage,
 	updateMyProfile,
 	changePassword,
-	resendOtp
+	resendOtp,
 };

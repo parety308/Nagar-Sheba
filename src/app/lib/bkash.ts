@@ -32,10 +32,7 @@ const grantToken = async (): Promise<string> => {
 		throw new Error(`bKash grant token failed: ${JSON.stringify(data)}`);
 	}
 
-	const ttl = Math.max(
-		Number(data.expires_in ?? 3600) - 60,
-		60,
-	);
+	const ttl = Math.max(Number(data.expires_in ?? 3600) - 60, 60);
 
 	await redisClient.set(TOKEN_KEY, data.id_token, {
 		expiration: {
@@ -97,9 +94,7 @@ export const bkashClient = {
 		return res.json();
 	},
 
-	executePayment: async (
-		paymentID: string,
-	): Promise<IBkashExecuteResponse> => {
+	executePayment: async (paymentID: string): Promise<IBkashExecuteResponse> => {
 		const res = await fetch(
 			`${config.bkash.base_url}/tokenized/checkout/execute`,
 			{
@@ -114,9 +109,7 @@ export const bkashClient = {
 		return res.json();
 	},
 
-	queryPayment: async (
-		paymentID: string,
-	): Promise<IBkashExecuteResponse> => {
+	queryPayment: async (paymentID: string): Promise<IBkashExecuteResponse> => {
 		const res = await fetch(
 			`${config.bkash.base_url}/tokenized/checkout/payment/status`,
 			{
