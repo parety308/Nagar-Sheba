@@ -30,7 +30,7 @@ const sendContactMessage = async (payload: {
 	message: string;
 }) => {
 	await sendMail({
-		to: config.resend.contact_to,
+		to: config.mail.contact_to, 
 		replyTo: payload.email,
 		subject: `[Nagar Sheba Contact] ${payload.subject}`,
 		text: `From: ${payload.name} <${payload.email}>\n\n${payload.message}`,

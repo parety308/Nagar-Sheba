@@ -27,14 +27,23 @@ export default {
 		url: process.env.REDIS_URL!,
 	},
 	staff_password: process.env.STAFF_PASSWORD!,
-	smtp: {
-		user: process.env.SMTP_USER!,
-		sender: process.env.SMTP_SENDER!,
-		password: process.env.SMTP_PASSWORD!,
+	// smtp: {
+	// 	user: process.env.SMTP_USER!,
+	// 	sender: process.env.SMTP_SENDER!,
+	// 	password: process.env.SMTP_PASSWORD!,
+	// },
+	// resend: {
+	// 	api_key: process.env.RESEND_API_KEY!,
+	// 	from: process.env.EMAIL_FROM!,
+	// 	contact_to: process.env.CONTACT_RECEIVER_EMAIL!,
+	// },
+		emailjs: {
+		service_id: process.env.EMAILJS_SERVICE_ID!,
+		template_id: process.env.EMAILJS_TEMPLATE_ID!,
+		public_key: process.env.EMAILJS_PUBLIC_KEY!,
+		private_key: process.env.EMAILJS_PRIVATE_KEY!,
 	},
-	resend: {
-		api_key: process.env.RESEND_API_KEY!,
-		from: process.env.EMAIL_FROM!,
+	mail: {
 		contact_to: process.env.CONTACT_RECEIVER_EMAIL!,
 	},
 	cloudinary: {

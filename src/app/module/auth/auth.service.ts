@@ -232,7 +232,7 @@ const verifyRegistrationEmail = async (payload: IRegistrationVerifyPayload) => {
 		});
 
 		await sendMail({
-			to: config.resend.contact_to,
+			to: createdUser.email, 
 			subject: "Welcome to Nagar Sheba",
 			html,
 		});
@@ -578,7 +578,7 @@ const forgotPassword = async (payload: IForgotPasswordPayload) => {
 	const html = await ejs.renderFile(templatePath, { otp });
 
 	await sendMail({
-		to: config.resend.contact_to,
+		to: email,  
 		subject: "Forgot Password",
 		html,
 	});
@@ -640,7 +640,7 @@ const resetPassword = async (payload: IResetPasswordPayload) => {
 		const html = await ejs.renderFile(templatePath);
 
 		await sendMail({
-			to: config.resend.contact_to,
+			to: email,  
 			subject: "Password Changed Successfully",
 			html,
 		});

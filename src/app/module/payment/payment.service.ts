@@ -222,13 +222,20 @@ const sendReceiptEmail = async (paymentId: string) => {
 		});
 
 		await sendMail({
-			to: config.resend.contact_to,
-			subject: `Payment receipt - ${request.trackingRef}`,
-			text: `Your payment of BDT ${payment.amount} for request ${request.trackingRef} was successful. Your receipt is attached.`,
-			attachments:[
-				{ filename: `receipt-${request.trackingRef}.pdf`, content: pdf },
-			],
-		});
+	to: request.citizen.email,
+	subject: `Payment receipt - ${request.trackingRef}`,
+	html: `
+		<div style="font-family:Arial,sans-serif">
+			<h2>Payment successful</h2>
+			<p>Hello ${request.citizen.citizenProfile?.fullName ?? ""},</p>
+			<p>Your payment of <strong>BDT ${payment.amount}</strong> for request
+			<strong>${request.trackingRef}</strong> (${request.title}) was completed
+			via ${payment.provider}.</p>
+			<p>Transaction ref: ${payment.providerRef}</p>
+			<p>You can download your PDF receipt anytime from your dashboard
+			under <em>Payments</em>.</p>
+		</div>`,
+});
 	} catch (error) {
 		// Never let an email problem affect the payment itself
 		console.error("Failed to send receipt email:", error);
